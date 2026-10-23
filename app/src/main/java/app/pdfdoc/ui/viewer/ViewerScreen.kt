@@ -254,6 +254,8 @@ private fun PdfPages(
     var scale by rememberSaveable { mutableFloatStateOf(1f) }
     val hScroll = rememberScrollState()
     var pendingHScroll by remember { mutableStateOf<Float?>(null) }
+    val listTopPadding = topPadding + 8.dp
+    val listTopPaddingPx = with(LocalDensity.current) { listTopPadding.toPx() }
 
     // Keeps the point under the fingers (in viewport coordinates) fixed while zooming.
     fun zoomAround(target: Float, centroid: Offset) {
@@ -262,10 +264,12 @@ private fun PdfPages(
         val ratio = new / old
         if (ratio == 1f) return
         scale = new
+        // The list content starts below the top padding, which does not scale.
+        val y = centroid.y - listTopPaddingPx
         val offset = listState.firstVisibleItemScrollOffset
         listState.requestScrollToItem(
             listState.firstVisibleItemIndex,
-            ((offset + centroid.y) * ratio - centroid.y).roundToInt().coerceAtLeast(0),
+            ((offset + y) * ratio - y).roundToInt().coerceAtLeast(0),
         )
         pendingHScroll = (hScroll.value + centroid.x) * ratio - centroid.x
     }
@@ -316,7 +320,7 @@ private fun PdfPages(
             modifier = Modifier
                 .fillMaxSize()
                 .horizontalScroll(hScroll),
-            contentPadding = PaddingValues(top = topPadding + 8.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(top = listTopPadding, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(state.pageSizes.size, key = { it }) { index ->

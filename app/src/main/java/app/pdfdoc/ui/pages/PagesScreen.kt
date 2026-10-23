@@ -9,6 +9,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -65,6 +66,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -226,51 +230,60 @@ private fun PageGrid(state: PagesUiState, viewModel: PagesViewModel) {
         dragOffset = Offset.Zero
     }
 
+    fun onMove(delta: Offset) {
+        dragOffset += delta
+        val from = dragFrom ?: return
+        val item = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == from } ?: return
+        val center = item.offset.toOffset() + item.size.toSize().center + dragOffset
+        gridState.itemAt(center)?.let { dragTarget = it.index }
+        // Auto-scroll when dragging near the edges; keep the item under the finger.
+        val viewport = gridState.layoutInfo.viewportSize.height
+        val edge = 120f
+        val scroll = when {
+            center.y > viewport - edge -> 24f
+            center.y < edge -> -24f
+            else -> 0f
+        }
+        if (scroll != 0f) dragOffset += Offset(0f, gridState.dispatchRawDelta(scroll))
+    }
+
     LazyVerticalGrid(
         columns = GridCells.Adaptive(minSize = 110.dp),
         state = gridState,
         contentPadding = PaddingValues(12.dp),
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInputDrag(
-                key = state.generation,
-                gridState = gridState,
-                onStart = { index -> dragFrom = index; dragTarget = index; dragOffset = Offset.Zero },
-                onMove = { delta ->
-                    dragOffset += delta
-                    val from = dragFrom ?: return@pointerInputDrag
-                    val item = gridState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == from }
-                        ?: return@pointerInputDrag
-                    val center = item.offset.toOffset() + item.size.toSize().center + dragOffset
-                    gridState.itemAt(center)?.let { dragTarget = it.index }
-                    // Auto-scroll when dragging near the edges; keep the item under the finger.
-                    val viewport = gridState.layoutInfo.viewportSize.height
-                    val edge = 120f
-                    val scroll = when {
-                        center.y > viewport - edge -> 24f
-                        center.y < edge -> -24f
-                        else -> 0f
-                    }
-                    if (scroll != 0f) dragOffset += Offset(0f, gridState.dispatchRawDelta(scroll))
-                },
-                onEnd = {
-                    val from = dragFrom
-                    val to = dragTarget
-                    reset()
-                    if (from != null && to != null) viewModel.move(from, to)
-                },
-                onCancel = ::reset,
-            ),
+        modifier = Modifier.fillMaxSize(),
     ) {
         items(state.pageCount, key = { "${state.generation}:$it" }) { index ->
             val dragging = index == dragFrom
+            // The drag detector sits on the item, below the grid's own scroll handling,
+            // otherwise the grid consumes the moves and cancels the drag.
+            val drag = Modifier.pointerInput(state.generation, index) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = {
+                        dragFrom = index
+                        dragTarget = index
+                        dragOffset = Offset.Zero
+                    },
+                    onDrag = { change, amount ->
+                        change.consume()
+                        onMove(amount)
+                    },
+                    onDragEnd = {
+                        val from = dragFrom
+                        val to = dragTarget
+                        reset()
+                        if (from != null && to != null) viewModel.move(from, to)
+                    },
+                    onDragCancel = ::reset,
+                )
+            }
             PageThumb(
                 index = index,
                 generation = state.generation,
                 selected = index in state.selected,
                 dropTarget = index == dragTarget && !dragging,
                 modifier = if (dragging) {
-                    Modifier
+                    drag
                         .zIndex(1f)
                         .graphicsLayer {
                             translationX = dragOffset.x
@@ -280,7 +293,7 @@ private fun PageGrid(state: PagesUiState, viewModel: PagesViewModel) {
                             shadowElevation = 16f
                         }
                 } else {
-                    Modifier
+                    drag
                 },
                 onClick = { viewModel.toggle(index) },
                 load = viewModel::thumbnail,
@@ -289,30 +302,12 @@ private fun PageGrid(state: PagesUiState, viewModel: PagesViewModel) {
     }
 }
 
+/** Item offsets are relative to the content start, so content padding is ignored here. */
 private fun LazyGridState.itemAt(point: Offset): LazyGridItemInfo? =
     layoutInfo.visibleItemsInfo.firstOrNull { item ->
         val o = item.offset
         point.x >= o.x && point.x < o.x + item.size.width && point.y >= o.y && point.y < o.y + item.size.height
     }
-
-private fun Modifier.pointerInputDrag(
-    key: Any,
-    gridState: LazyGridState,
-    onStart: (Int) -> Unit,
-    onMove: (Offset) -> Unit,
-    onEnd: () -> Unit,
-    onCancel: () -> Unit,
-): Modifier = pointerInput(key) {
-    detectDragGesturesAfterLongPress(
-        onDragStart = { pos -> gridState.itemAt(pos)?.let { onStart(it.index) } },
-        onDrag = { change, amount ->
-            change.consume()
-            onMove(amount)
-        },
-        onDragEnd = onEnd,
-        onDragCancel = onCancel,
-    )
-}
 
 @Composable
 private fun PageThumb(
@@ -332,11 +327,18 @@ private fun PageThumb(
         else -> Color.Transparent
     }
     Column(modifier.padding(6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        // A clickable Card would consume the press and block the grid's long-press drag,
+        // so taps are detected without consuming the down event.
         Card(
-            onClick = onClick,
             border = BorderStroke(3.dp, borderColor),
             colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .pointerInput(Unit) { detectTapGestures(onTap = { onClick() }) }
+                .semantics {
+                    this.selected = selected
+                    onClick { onClick(); true }
+                },
         ) {
             Box(Modifier.fillMaxWidth().aspectRatio(bitmap?.let { it.width / it.height.toFloat() } ?: 0.707f)) {
                 bitmap?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize()) }
