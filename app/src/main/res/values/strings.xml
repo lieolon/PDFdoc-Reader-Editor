@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PDFdoc</string>
+
+    <!-- Common -->
+    <string name="back">Назад</string>
+    <string name="cancel">Отмена</string>
+    <string name="ok">ОК</string>
+    <string name="save">Сохранить</string>
+    <string name="save_as">Сохранить как…</string>
+    <string name="undo">Отменить</string>
+    <string name="more">Ещё</string>
+    <string name="saved">Сохранено</string>
+
+    <!-- Home -->
+    <string name="home_search_hint">Поиск по названию</string>
+    <string name="home_open">Открыть PDF</string>
+    <string name="home_merge">Объединить PDF</string>
+    <string name="home_recent">Последние файлы</string>
+    <string name="home_empty_title">Здесь пока пусто</string>
+    <string name="home_empty_text">Откройте PDF-файл — он появится в списке последних.</string>
+    <string name="home_nothing_found">Ничего не найдено</string>
+    <string name="home_sort">Сортировка</string>
+    <string name="sort_date">По дате</string>
+    <string name="sort_name">По имени</string>
+    <string name="sort_size">По размеру</string>
+    <string name="home_remove_from_list">Убрать из списка</string>
+    <string name="home_settings">Настройки</string>
+    <string name="pages_count">%1$d стр.</string>
+
+    <!-- Viewer -->
+    <string name="viewer_pages">Страницы</string>
+    <string name="viewer_go_to_page">Перейти к странице</string>
+    <string name="viewer_page_number">Номер страницы (1–%1$d)</string>
+    <string name="viewer_night_mode">Ночной режим</string>
+    <string name="viewer_share">Отправить</string>
+    <string name="viewer_open_with">Открыть в другом приложении</string>
+    <string name="viewer_print">Печать</string>
+    <string name="viewer_page_indicator">%1$d / %2$d</string>
+
+    <!-- Pages -->
+    <string name="pages_title">Страницы</string>
+    <string name="pages_selected">Выбрано: %1$d</string>
+    <string name="pages_select_all">Выбрать все</string>
+    <string name="pages_rotate">Повернуть</string>
+    <string name="pages_delete">Удалить</string>
+    <string name="pages_extract">Извлечь в новый PDF</string>
+    <string name="pages_extract_name">%1$s (фрагмент).pdf</string>
+    <string name="pages_hint">Нажмите, чтобы выбрать страницу. Удерживайте и перетаскивайте, чтобы изменить порядок.</string>
+    <string name="pages_cant_delete_all">Нельзя удалить все страницы документа</string>
+    <string name="pages_unsaved_title">Сохранить изменения?</string>
+    <string name="pages_unsaved_text">В документе есть несохранённые изменения.</string>
+    <string name="pages_discard">Не сохранять</string>
+
+    <!-- Merge -->
+    <string name="merge_title">Объединение PDF</string>
+    <string name="merge_add">Добавить файлы</string>
+    <string name="merge_run">Объединить</string>
+    <string name="merge_hint">Добавьте два или более PDF-файла и расставьте их в нужном порядке.</string>
+    <string name="merge_move_up">Выше</string>
+    <string name="merge_move_down">Ниже</string>
+    <string name="merge_remove">Убрать</string>
+    <string name="merge_default_name">Объединённый.pdf</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_theme">Тема оформления</string>
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="settings_clear_cache">Очистить кэш</string>
+    <string name="settings_cache_cleared">Кэш очищен</string>
+    <string name="settings_privacy">Приложение работает без интернета: документы никогда не покидают устройство.</string>
+
+    <!-- Errors -->
+    <string name="error_open">Не удалось открыть файл. Возможно, он повреждён или защищён паролем.</string>
+    <string name="error_save">Не удалось сохранить файл.</string>
+    <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
+    <string name="working">Обработка…</string>
+</resources>
