@@ -81,3 +81,11 @@ GitHub Actions собирает APK на каждый push в `main` (вклад
 Kotlin, Jetpack Compose, Material 3, Hilt, Room, DataStore, Navigation Compose,
 PdfRenderer (просмотр), PdfBox-Android (изменение PDF), шрифт Roboto (Apache 2.0) для кириллицы,
 CameraX, Tesseract4Android (Apache 2.0) с моделями tessdata_fast (Apache 2.0).
+
+## Лицензия
+
+PDFdoc — свободное ПО под лицензией [GNU GPL v3](LICENSE). Его можно использовать, изучать,
+изменять и распространять, но изменённые версии тоже должны оставаться открытыми под GPL-3.0.
+
+Сторонние компоненты (PdfBox-Android, Tesseract, модели tessdata_fast, шрифт Roboto, AndroidX)
+распространяются под Apache 2.0 — эта лицензия совместима с GPL-3.0.

@@ -290,7 +290,7 @@
     <string name="settings_imported">Настройки восстановлены</string>
     <string name="settings_import_invalid">Это не файл настроек PDFdoc</string>
     <string name="settings_licenses">Открытые лицензии</string>
-    <string name="licenses_text">PDFdoc использует только свободное ПО:\n\n• PdfBox-Android — Apache 2.0\n• Tesseract4Android и Tesseract OCR — Apache 2.0\n• Модели tessdata_fast — Apache 2.0\n• Шрифт Roboto — Apache 2.0\n• AndroidX, Jetpack Compose, CameraX, Room, WorkManager — Apache 2.0\n• Dagger Hilt — Apache 2.0\n• Kotlin и kotlinx — Apache 2.0</string>
+    <string name="licenses_text">PDFdoc — свободное ПО под лицензией GNU GPL v3.\n\nИспользуются только свободные компоненты:\n\n• PdfBox-Android — Apache 2.0\n• Tesseract4Android и Tesseract OCR — Apache 2.0\n• Модели tessdata_fast — Apache 2.0\n• Шрифт Roboto — Apache 2.0\n• AndroidX, Jetpack Compose, CameraX, Room, WorkManager — Apache 2.0\n• Dagger Hilt — Apache 2.0\n• Kotlin и kotlinx — Apache 2.0</string>
     <string name="settings_privacy">Приложение работает без интернета: документы никогда не покидают устройство.</string>
 
     <!-- Passwords -->
