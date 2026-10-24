@@ -59,6 +59,7 @@ interface EditorGestures {
     fun onStroke(points: List<Pt>)
     fun onShape(kind: ShapeKind, start: Pt, end: Pt)
     fun onMarkup(kind: MarkupKind, from: Pt, to: Pt)
+    fun onReplace(from: Pt, to: Pt)
     fun onTap(at: Pt)
     fun onSelect(id: Long?)
     fun onPreview(edit: Edit)
@@ -131,7 +132,7 @@ fun EditorCanvas(
 
                 when (val t = currentTool) {
                     Tool.PEN -> { mode = Mode.PEN; stroke = listOf(start) }
-                    Tool.RECT, Tool.OVAL, Tool.LINE, Tool.ARROW, Tool.HIGHLIGHT, Tool.UNDERLINE, Tool.STRIKEOUT -> {
+                    Tool.RECT, Tool.OVAL, Tool.LINE, Tool.ARROW, Tool.HIGHLIGHT, Tool.UNDERLINE, Tool.STRIKEOUT, Tool.REPLACE -> {
                         mode = if (t.usesWidth) Mode.SHAPE else Mode.MARKUP
                         dragStart = start
                         dragEnd = start
@@ -197,7 +198,10 @@ fun EditorCanvas(
                 when (mode) {
                     Mode.PEN -> if (stroke.isNotEmpty()) currentGestures.onStroke(stroke)
                     Mode.SHAPE -> if (moved) currentGestures.onShape(shapeKind(currentTool), start, end)
-                    Mode.MARKUP -> if (moved) currentGestures.onMarkup(markupKind(currentTool), start, end)
+                    Mode.MARKUP -> if (moved) {
+                        if (currentTool == Tool.REPLACE) currentGestures.onReplace(start, end)
+                        else currentGestures.onMarkup(markupKind(currentTool), start, end)
+                    }
                     Mode.TAP -> if (!moved) currentGestures.onTap(start)
                     Mode.MOVE, Mode.RESIZE -> if (moved) currentGestures.onCommitPreview()
                     else -> Unit
@@ -251,7 +255,7 @@ fun EditorCanvas(
                     val a = dragStart
                     val b = dragEnd
                     if (a != null && b != null) {
-                        val markupRects = if (tool == Tool.HIGHLIGHT || tool == Tool.UNDERLINE || tool == Tool.STRIKEOUT) {
+                        val markupRects = if (tool == Tool.HIGHLIGHT || tool == Tool.UNDERLINE || tool == Tool.STRIKEOUT || tool == Tool.REPLACE) {
                             pageText?.select(a, b).orEmpty().ifEmpty { listOf(Box.of(a, b)) }
                         } else emptyList()
                         when (tool) {

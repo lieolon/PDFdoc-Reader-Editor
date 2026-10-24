@@ -2,6 +2,7 @@ package app.pdfdoc.data.pdf
 
 import android.graphics.BitmapFactory
 import app.pdfdoc.domain.edit.Box
+import app.pdfdoc.domain.edit.CoverEdit
 import app.pdfdoc.domain.edit.Edit
 import app.pdfdoc.domain.edit.ImageEdit
 import app.pdfdoc.domain.edit.InkEdit
@@ -64,6 +65,11 @@ class AppearancePainter(
             is NoteEdit -> note(cs, edit)
             is ImageEdit -> image(cs, edit)
             is StampEdit -> stamp(cs, edit)
+            is CoverEdit -> {
+                fillColor(cs, edit.color)
+                cs.addRect(edit.box.left, edit.box.top, edit.box.width, edit.box.height)
+                cs.fill()
+            }
         }
     }
 

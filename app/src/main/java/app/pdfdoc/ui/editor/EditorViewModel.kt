@@ -23,6 +23,8 @@ import app.pdfdoc.data.pdf.TextExtractor
 import app.pdfdoc.data.pdf.TextMetrics
 import app.pdfdoc.data.signature.SignatureRepository
 import app.pdfdoc.domain.edit.Box
+import app.pdfdoc.domain.edit.CoverEdit
+import app.pdfdoc.domain.edit.TextLayout
 import app.pdfdoc.domain.edit.Edit
 import app.pdfdoc.domain.edit.EditHistory
 import app.pdfdoc.domain.edit.ImageEdit
@@ -60,7 +62,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-enum class Tool { SELECT, HIGHLIGHT, UNDERLINE, STRIKEOUT, PEN, RECT, OVAL, LINE, ARROW, TEXT, NOTE }
+enum class Tool { SELECT, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, RECT, OVAL, LINE, ARROW, TEXT, NOTE }
 
 val Tool.usesWidth get() = this == Tool.PEN || this == Tool.RECT || this == Tool.OVAL || this == Tool.LINE || this == Tool.ARROW
 
@@ -89,6 +91,9 @@ data class EditStyle(
     fun color(tool: Tool) = colors[tool] ?: Palette.RED
 }
 
+/** Text picked for replacement, waiting for the new wording. */
+data class ReplacePrompt(val page: Int, val rects: List<Box>, val text: String)
+
 data class EditorUiState(
     val loading: Boolean = true,
     val failed: Boolean = false,
@@ -104,6 +109,7 @@ data class EditorUiState(
     val canRedo: Boolean = false,
     val dirty: Boolean = false,
     val generation: Int = 0,
+    val replace: ReplacePrompt? = null,
 ) {
     val selected: Edit? get() = edits.firstOrNull { it.id == selectedId }
     val pageEdits: List<Edit> get() = edits.filter { it.page == page }
@@ -282,6 +288,42 @@ class EditorViewModel @Inject constructor(
             }
             add(MarkupEdit(0, page, kind, rects, state.value.style.color(tool)), select = false)
         }
+    }
+
+    /** Starts replacing the text between [from] and [to]; the UI then asks for the new text. */
+    fun pickTextToReplace(page: Int, from: Pt, to: Pt) {
+        viewModelScope.launch {
+            val text = pageText(page)
+            val rects = text?.select(from, to).orEmpty()
+            if (rects.isEmpty()) {
+                _events.send(EditorEvent.Message(R.string.editor_no_text_layer_replace))
+                return@launch
+            }
+            _state.update { it.copy(replace = ReplacePrompt(page, rects, text!!.selectedText(from, to))) }
+        }
+    }
+
+    fun cancelReplace() = _state.update { it.copy(replace = null) }
+
+    /**
+     * Covers the old text with the background color and writes [newText] on the first line,
+     * at a size matching the original line height. One undo step.
+     */
+    fun confirmReplace(newText: String) {
+        val prompt = state.value.replace ?: return
+        _state.update { it.copy(replace = null) }
+        val covers = prompt.rects.map { CoverEdit(nextId++, prompt.page, it.inset(-1f)) }
+        val added = covers.toMutableList<Edit>()
+        if (newText.isNotBlank()) {
+            val first = prompt.rects.first()
+            // Glyph boxes span 0.75 em above and 0.22 em below the baseline (see TextExtractor).
+            val size = first.height / 0.97f
+            val baseline = first.bottom - size * 0.22f
+            val top = baseline - size * TextLayout.ASCENT
+            val color = state.value.style.color(Tool.TEXT)
+            added += measured(TextEdit(nextId++, prompt.page, Box(first.left, top, first.left, top), newText, size, color))
+        }
+        commit(history.current + added)
     }
 
     fun addText(page: Int, at: Pt, text: String) {

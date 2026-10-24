@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.FindReplace
 import androidx.compose.material.icons.filled.FormatStrikethrough
 import androidx.compose.material.icons.filled.FormatUnderlined
 import androidx.compose.material.icons.filled.Gesture
@@ -117,6 +118,7 @@ private val Tools = listOf(
     ToolItem(Tool.HIGHLIGHT, Icons.Default.BorderColor, R.string.tool_highlight),
     ToolItem(Tool.UNDERLINE, Icons.Default.FormatUnderlined, R.string.tool_underline),
     ToolItem(Tool.STRIKEOUT, Icons.Default.FormatStrikethrough, R.string.tool_strikeout),
+    ToolItem(Tool.REPLACE, Icons.Default.FindReplace, R.string.tool_replace),
     ToolItem(Tool.PEN, Icons.Default.Draw, R.string.tool_pen),
     ToolItem(Tool.RECT, Icons.Default.CropSquare, R.string.tool_rect),
     ToolItem(Tool.OVAL, Icons.Default.RadioButtonUnchecked, R.string.tool_oval),
@@ -162,7 +164,7 @@ fun EditorScreen(
         }
     }
     LaunchedEffect(state.page, state.tool, state.loading) {
-        val markup = state.tool == Tool.HIGHLIGHT || state.tool == Tool.UNDERLINE || state.tool == Tool.STRIKEOUT
+        val markup = state.tool == Tool.HIGHLIGHT || state.tool == Tool.UNDERLINE || state.tool == Tool.STRIKEOUT || state.tool == Tool.REPLACE
         pageText = if (markup && !state.loading) viewModel.pageText(state.page) else null
     }
 
@@ -282,6 +284,7 @@ fun EditorScreen(
                             override fun onStroke(points: List<Pt>) = viewModel.addStroke(state.page, points)
                             override fun onShape(kind: ShapeKind, start: Pt, end: Pt) = viewModel.addShape(state.page, kind, start, end)
                             override fun onMarkup(kind: MarkupKind, from: Pt, to: Pt) = viewModel.addMarkup(state.page, kind, from, to)
+                            override fun onReplace(from: Pt, to: Pt) = viewModel.pickTextToReplace(state.page, from, to)
                             override fun onTap(at: Pt) {
                                 prompt = if (state.tool == Tool.NOTE) TextPrompt.NewNote(state.page, at) else TextPrompt.NewText(state.page, at)
                             }
@@ -323,6 +326,17 @@ fun EditorScreen(
                     TextPrompt.CustomStamp -> viewModel.addStamp(text.uppercase(), state.style.color(Tool.SELECT))
                 }
             },
+        )
+    }
+
+    state.replace?.let { replace ->
+        TextPromptDialog(
+            title = stringResource(R.string.editor_replace_title),
+            initial = replace.text,
+            singleLine = false,
+            onDismiss = viewModel::cancelReplace,
+            onConfirm = viewModel::confirmReplace,
+            note = stringResource(R.string.editor_replace_note),
         )
     }
 
@@ -393,6 +407,7 @@ private fun StyleBar(state: EditorUiState, viewModel: EditorViewModel) {
         is NoteEdit -> selected.color
         is StampEdit -> selected.color
         is app.pdfdoc.domain.edit.MarkupEdit -> selected.color
+        is app.pdfdoc.domain.edit.CoverEdit -> selected.color
         else -> state.style.color(tool)
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
@@ -514,19 +529,25 @@ private fun TextPromptDialog(
     singleLine: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
+    note: String? = null,
 ) {
     var text by remember { mutableStateOf(initial) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = singleLine,
-                minLines = if (singleLine) 1 else 3,
-                modifier = Modifier.fillMaxWidth(),
-            )
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = singleLine,
+                    minLines = if (singleLine) 1 else 3,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                note?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                }
+            }
         },
         confirmButton = { TextButton(onClick = { onConfirm(text) }) { Text(stringResource(R.string.ok)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },

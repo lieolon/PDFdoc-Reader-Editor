@@ -44,6 +44,10 @@
     <string name="viewer_search_previous">Previous</string>
     <string name="viewer_edit">Edit</string>
     <string name="viewer_fill_form">Fill in form</string>
+    <string name="viewer_mode">View mode</string>
+    <string name="mode_continuous">Continuous scroll</string>
+    <string name="mode_single">One page at a time</string>
+    <string name="mode_spread">Two-page spread</string>
     <string name="viewer_navigation">Contents and bookmarks</string>
     <string name="viewer_tools">Tools</string>
     <string name="viewer_outline">Contents</string>
@@ -99,6 +103,10 @@
     <string name="tool_highlight">Highlight</string>
     <string name="tool_underline">Underline</string>
     <string name="tool_strikeout">Strike out</string>
+    <string name="tool_replace">Replace</string>
+    <string name="editor_replace_title">Replace text</string>
+    <string name="editor_replace_note">The old text is covered with a white box and the new text is written on top. Pick a matching color in the palette if the background is not white.</string>
+    <string name="editor_no_text_layer_replace">Select text on a page that has a text layer. For scans, run OCR first.</string>
     <string name="tool_pen">Pen</string>
     <string name="tool_rect">Rectangle</string>
     <string name="tool_oval">Oval</string>
@@ -212,6 +220,10 @@
     <string name="tool_text_export">Export to TXT</string>
     <string name="tool_text_export_desc">All document text into a text file</string>
     <string name="tool_text_page">— Page %1$d —</string>
+    <string name="tool_docx">Export to Word (DOCX)</string>
+    <string name="tool_docx_desc">Text for editing in Word or LibreOffice</string>
+    <string name="tool_docx_warning">Only the text is transferred, split into paragraphs, one Word page per PDF page. Layout, columns, tables, fonts and images are not preserved. For scans, run text recognition (OCR) first.</string>
+    <string name="tool_docx_continue">Continue</string>
     <string name="tool_images_export">Export to images</string>
     <string name="tool_images_export_desc">Each page as a separate JPG or PNG</string>
     <string name="tool_images_hint">Resolution and quality can be changed in Settings.</string>

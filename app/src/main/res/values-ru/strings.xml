@@ -44,6 +44,10 @@
     <string name="viewer_search_previous">Предыдущее</string>
     <string name="viewer_edit">Редактировать</string>
     <string name="viewer_fill_form">Заполнить форму</string>
+    <string name="viewer_mode">Режим просмотра</string>
+    <string name="mode_continuous">Непрерывная прокрутка</string>
+    <string name="mode_single">По одной странице</string>
+    <string name="mode_spread">Разворот (две страницы)</string>
     <string name="viewer_navigation">Оглавление и закладки</string>
     <string name="viewer_tools">Инструменты</string>
     <string name="viewer_outline">Оглавление</string>
@@ -99,6 +103,10 @@
     <string name="tool_highlight">Маркер</string>
     <string name="tool_underline">Подчеркнуть</string>
     <string name="tool_strikeout">Зачеркнуть</string>
+    <string name="tool_replace">Заменить</string>
+    <string name="editor_replace_title">Замена текста</string>
+    <string name="editor_replace_note">Старый текст закрывается белой заливкой, поверх пишется новый. Если фон не белый, подберите цвет заливки в палитре.</string>
+    <string name="editor_no_text_layer_replace">Выделите текст на странице с текстовым слоем. Для сканов сначала запустите OCR.</string>
     <string name="tool_pen">Перо</string>
     <string name="tool_rect">Прямоуг.</string>
     <string name="tool_oval">Овал</string>
@@ -212,6 +220,10 @@
     <string name="tool_text_export">Экспорт в TXT</string>
     <string name="tool_text_export_desc">Весь текст документа в текстовый файл</string>
     <string name="tool_text_page">— Страница %1$d —</string>
+    <string name="tool_docx">Экспорт в Word (DOCX)</string>
+    <string name="tool_docx_desc">Текст для правки в Word или LibreOffice</string>
+    <string name="tool_docx_warning">Переносится только текст: по абзацам, каждая страница PDF — отдельная страница Word. Вёрстка, колонки, таблицы, шрифты и картинки не сохраняются. Для сканов сначала запустите распознавание текста (OCR).</string>
+    <string name="tool_docx_continue">Продолжить</string>
     <string name="tool_images_export">Экспорт в изображения</string>
     <string name="tool_images_export_desc">Каждая страница — отдельный JPG или PNG</string>
     <string name="tool_images_hint">Разрешение и качество меняются в настройках.</string>

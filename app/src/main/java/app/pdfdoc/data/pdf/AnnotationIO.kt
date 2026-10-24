@@ -3,6 +3,7 @@ package app.pdfdoc.data.pdf
 import android.content.Context
 import android.graphics.Bitmap
 import app.pdfdoc.domain.edit.Box
+import app.pdfdoc.domain.edit.CoverEdit
 import app.pdfdoc.domain.edit.Edit
 import app.pdfdoc.domain.edit.ImageEdit
 import app.pdfdoc.domain.edit.InkEdit
@@ -170,6 +171,11 @@ class AnnotationIO @Inject constructor(
                 dict.setName(COSName.NAME, "Comment")
             }
             is StampEdit -> dict.setString(COSName.CONTENTS, edit.text)
+            is CoverEdit -> {
+                val c = edit.color
+                dict.setItem(COSName.IC, floats(AppearancePainter.r(c), AppearancePainter.g(c), AppearancePainter.b(c)))
+                dict.setItem(COSName.BS, border(0f))
+            }
             is ImageEdit -> Unit
         }
     }
@@ -207,6 +213,7 @@ class AnnotationIO @Inject constructor(
             is TextEdit -> "FreeText"
             is NoteEdit -> "Text"
             is ImageEdit, is StampEdit -> "Stamp"
+            is CoverEdit -> "Square"
         }
 
         private fun colorOf(edit: Edit): Int? = when (edit) {
@@ -216,6 +223,7 @@ class AnnotationIO @Inject constructor(
             is TextEdit -> edit.color
             is NoteEdit -> edit.color
             is StampEdit -> edit.color
+            is CoverEdit -> edit.color
             is ImageEdit -> null
         }
 

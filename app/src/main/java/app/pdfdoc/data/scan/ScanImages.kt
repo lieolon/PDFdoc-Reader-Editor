@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Matrix
 import android.graphics.Paint
+import app.pdfdoc.domain.edit.Pt
+import app.pdfdoc.domain.scan.EdgeDetector
 import app.pdfdoc.domain.scan.Filters
 import app.pdfdoc.domain.scan.Quad
 import app.pdfdoc.domain.scan.ScanFilter
@@ -30,6 +32,21 @@ object ScanImages {
         Canvas(out).drawBitmap(source, matrix, Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
         return out
     }
+
+    /** Finds the page outline in [source], or null if no clear page is visible. */
+    fun detectPage(source: Bitmap): Quad? {
+        val scale = DETECT_SIDE.toFloat() / max(source.width, source.height)
+        val small = if (scale < 1f) {
+            Bitmap.createScaledBitmap(source, (source.width * scale).toInt().coerceAtLeast(1), (source.height * scale).toInt().coerceAtLeast(1), true)
+        } else source
+        val k = if (scale < 1f) scale else 1f
+        val pixels = IntArray(small.width * small.height)
+        small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
+        val quad = EdgeDetector.detect(pixels, small.width, small.height) ?: return null
+        return Quad.ordered(quad.corners.map { Pt((it.x / k).coerceIn(0f, source.width.toFloat()), (it.y / k).coerceIn(0f, source.height.toFloat())) })
+    }
+
+    private const val DETECT_SIDE = 256
 
     fun rotateClockwise(source: Bitmap): Bitmap =
         Bitmap.createBitmap(source, 0, 0, source.width, source.height, Matrix().apply { postRotate(90f) }, true)

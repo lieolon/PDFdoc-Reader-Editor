@@ -6,6 +6,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material3.RadioButton
+import app.pdfdoc.domain.model.ViewMode
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -171,6 +177,8 @@ fun ViewerScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
+    val mode by viewModel.viewMode.collectAsStateWithLifecycle()
+    var modeDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val ocr by viewModel.ocr.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
@@ -250,6 +258,11 @@ fun ViewerScreen(
                                         )
                                     }
                                     DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.viewer_mode)) },
+                                        leadingIcon = { Icon(Icons.Default.ViewAgenda, null) },
+                                        onClick = { menu = false; modeDialog = true },
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.viewer_navigation)) },
                                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
                                         onClick = { menu = false; navigation = true },
@@ -308,19 +321,29 @@ fun ViewerScreen(
             )
             is ViewerUiState.Ready -> {
                 LaunchedEffect(s.generation) {
-                    if (s.generation == 1) listState.scrollToItem(s.initialPage)
+                    if (s.generation == 1) listState.scrollToItem(mode.itemOf(s.initialPage))
                 }
-                LaunchedEffect(listState) {
-                    snapshotFlow { listState.firstVisibleItemIndex }.collect(viewModel::onPageVisible)
+                LaunchedEffect(listState, mode) {
+                    snapshotFlow { currentPage(listState, mode) }.collect(viewModel::onPageVisible)
+                }
+                // Keep the current page when switching between layouts.
+                var previousMode by remember { mutableStateOf(mode) }
+                LaunchedEffect(mode) {
+                    if (mode != previousMode) {
+                        val page = previousMode.pageOf(listState.firstVisibleItemIndex)
+                        previousMode = mode
+                        listState.scrollToItem(mode.itemOf(page))
+                    }
                 }
                 val currentHit = search.currentHit
                 LaunchedEffect(currentHit) {
-                    currentHit?.let { listState.animateScrollToItem(it.page) }
+                    currentHit?.let { listState.animateScrollToItem(mode.itemOf(it.page)) }
                 }
                 Box(Modifier.fillMaxSize()) {
                     PdfPages(
                         state = s,
                         listState = listState,
+                        mode = mode,
                         nightMode = nightMode,
                         topPadding = padding.calculateTopPadding(),
                         onTap = { chromeVisible = !chromeVisible },
@@ -333,7 +356,7 @@ fun ViewerScreen(
                         enter = fadeIn(),
                         exit = fadeOut(),
                     ) {
-                        val current by remember { derivedStateOf { listState.firstVisibleItemIndex + 1 } }
+                        val current by remember(mode) { derivedStateOf { currentPage(listState, mode) + 1 } }
                         Surface(
                             shape = RoundedCornerShape(50),
                             color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.85f),
@@ -356,7 +379,7 @@ fun ViewerScreen(
                         onDismiss = { goToDialog = false },
                         onGo = { page ->
                             goToDialog = false
-                            scope.launch { listState.scrollToItem(page) }
+                            scope.launch { listState.scrollToItem(mode.itemOf(page)) }
                         },
                     )
                 }
@@ -364,15 +387,37 @@ fun ViewerScreen(
         }
     }
 
+    if (modeDialog) {
+        AlertDialog(
+            onDismissRequest = { modeDialog = false },
+            title = { Text(stringResource(R.string.viewer_mode)) },
+            text = {
+                Column {
+                    listOf(
+                        ViewMode.CONTINUOUS to R.string.mode_continuous,
+                        ViewMode.SINGLE to R.string.mode_single,
+                        ViewMode.SPREAD to R.string.mode_spread,
+                    ).forEach { (m, label) ->
+                        ListItem(
+                            headlineContent = { Text(stringResource(label)) },
+                            leadingContent = { RadioButton(selected = mode == m, onClick = null) },
+                            modifier = Modifier.clickable { modeDialog = false; viewModel.setViewMode(m) },
+                        )
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { modeDialog = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
     if (navigation) {
         val ready = state as? ViewerUiState.Ready
         NavigationSheet(
             viewModel = viewModel,
-            currentPage = listState.firstVisibleItemIndex,
+            currentPage = currentPage(listState, mode),
             onDismiss = { navigation = false },
             onPage = { page ->
                 navigation = false
-                if (ready != null && page in ready.pageSizes.indices) scope.launch { listState.scrollToItem(page) }
+                if (ready != null && page in ready.pageSizes.indices) scope.launch { listState.scrollToItem(mode.itemOf(page)) }
             },
         )
     }
@@ -418,10 +463,23 @@ fun ViewerScreen(
     }
 }
 
+/**
+ * The page the user is looking at: in single-page mode pages snap to the center, so the one
+ * nearest to it; otherwise the first visible one.
+ */
+private fun currentPage(listState: LazyListState, mode: ViewMode): Int {
+    if (mode != ViewMode.SINGLE) return mode.pageOf(listState.firstVisibleItemIndex)
+    val info = listState.layoutInfo
+    val center = (info.viewportStartOffset + info.viewportEndOffset) / 2
+    return info.visibleItemsInfo.minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - center) }?.index
+        ?: listState.firstVisibleItemIndex
+}
+
 @Composable
 private fun PdfPages(
     state: ViewerUiState.Ready,
     listState: LazyListState,
+    mode: ViewMode,
     nightMode: Boolean,
     topPadding: Dp,
     onTap: () -> Unit,
@@ -492,28 +550,51 @@ private fun PdfPages(
         }
         val renderWidth = (basePx * bucket).coerceAtMost(MAX_RENDER_WIDTH_PX)
 
+        // Height available for one page in single-page mode (below the top bar, above the indicator).
+        val viewportHeight = maxHeight - listTopPadding - 16.dp
+        val snap = rememberSnapFlingBehavior(lazyListState = listState)
+
+        @Composable
+        fun Page(index: Int, width: Dp) {
+            val size = state.pageSizes[index]
+            PageImage(
+                index = index,
+                pageWidthPt = size.width.toFloat(),
+                highlights = search.hits.filter { it.page == index }.flatMap { it.rects },
+                currentHit = search.currentHit?.takeIf { it.page == index }?.rects.orEmpty(),
+                aspectRatio = size.width.toFloat() / size.height,
+                width = width,
+                renderWidth = renderWidth,
+                generation = state.generation,
+                nightMode = nightMode,
+                pageBitmap = pageBitmap,
+            )
+        }
+
+        val pageCount = state.pageSizes.size
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .horizontalScroll(hScroll),
-            contentPadding = PaddingValues(top = listTopPadding, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(top = listTopPadding, bottom = if (mode == ViewMode.SINGLE) 16.dp else 96.dp),
+            verticalArrangement = Arrangement.spacedBy(if (mode == ViewMode.SINGLE) 16.dp else 8.dp),
+            flingBehavior = if (mode == ViewMode.SINGLE && scale <= 1.01f) snap else ScrollableDefaults.flingBehavior(),
         ) {
-            items(state.pageSizes.size, key = { it }) { index ->
-                val size = state.pageSizes[index]
-                PageImage(
-                    index = index,
-                    pageWidthPt = size.width.toFloat(),
-                    highlights = search.hits.filter { it.page == index }.flatMap { it.rects },
-                    currentHit = search.currentHit?.takeIf { it.page == index }?.rects.orEmpty(),
-                    aspectRatio = size.width.toFloat() / size.height,
-                    width = pageWidth,
-                    renderWidth = renderWidth,
-                    generation = state.generation,
-                    nightMode = nightMode,
-                    pageBitmap = pageBitmap,
-                )
+            when (mode) {
+                ViewMode.CONTINUOUS -> items(pageCount, key = { it }) { index -> Page(index, pageWidth) }
+                ViewMode.SINGLE -> items(pageCount, key = { it }) { index ->
+                    // Each page fits the screen; the box keeps it centered horizontally.
+                    val size = state.pageSizes[index]
+                    val fit = minOf(maxWidth, viewportHeight * (size.width.toFloat() / size.height))
+                    Box(Modifier.width(pageWidth), contentAlignment = Alignment.TopCenter) { Page(index, fit * scale) }
+                }
+                ViewMode.SPREAD -> items((pageCount + 1) / 2, key = { it }) { row ->
+                    Row(Modifier.width(pageWidth), horizontalArrangement = Arrangement.Center) {
+                        Page(row * 2, pageWidth / 2)
+                        if (row * 2 + 1 < pageCount) Page(row * 2 + 1, pageWidth / 2)
+                    }
+                }
             }
         }
     }

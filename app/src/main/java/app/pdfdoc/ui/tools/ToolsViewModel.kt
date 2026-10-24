@@ -87,6 +87,7 @@ class ToolsViewModel @Inject constructor(
     private val documents: DocumentRepository,
     private val docEvents: DocumentEvents,
     private val settings: SettingsRepository,
+    private val docx: app.pdfdoc.data.convert.DocxWriter,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -214,6 +215,14 @@ class ToolsViewModel @Inject constructor(
         launchBusy {
             val text = tools.extractText(source) { context.getString(R.string.tool_text_page, it) }
             context.contentResolver.openOutputStream(target, "wt")?.use { it.write(text.toByteArray()) } ?: error("write")
+            _events.send(ToolsEvent.Message(R.string.saved))
+        }
+    }
+
+    fun exportDocx(target: Uri) {
+        val source = working ?: return
+        launchBusy {
+            context.contentResolver.openOutputStream(target, "wt")?.use { docx.convert(source, it) } ?: error("write")
             _events.send(ToolsEvent.Message(R.string.saved))
         }
     }

@@ -27,6 +27,7 @@ class SettingsRepository @Inject constructor(
     private val jpegKey = intPreferencesKey("jpeg_quality")
     private val compressKey = stringPreferencesKey("compress_level")
     private val folderKey = stringPreferencesKey("default_folder")
+    private val viewModeKey = stringPreferencesKey("view_mode")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         prefs[themeKey]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM
@@ -47,6 +48,13 @@ class SettingsRepository @Inject constructor(
 
     /** Folder (SAF tree URI) suggested first when saving files. */
     val defaultFolder: Flow<String?> = context.dataStore.data.map { it[folderKey] }
+
+    val viewMode: Flow<app.pdfdoc.domain.model.ViewMode> = context.dataStore.data.map { prefs ->
+        prefs[viewModeKey]?.let { runCatching { app.pdfdoc.domain.model.ViewMode.valueOf(it) }.getOrNull() }
+            ?: app.pdfdoc.domain.model.ViewMode.CONTINUOUS
+    }
+
+    suspend fun setViewMode(mode: app.pdfdoc.domain.model.ViewMode) = context.dataStore.edit { it[viewModeKey] = mode.name }
 
     suspend fun setExportDpi(dpi: Int) = context.dataStore.edit { it[dpiKey] = dpi }
     suspend fun setJpegQuality(q: Int) = context.dataStore.edit { it[jpegKey] = q }

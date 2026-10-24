@@ -1,0 +1,30 @@
+PDFdoc is a completely free PDF app. No ads, subscriptions, accounts or analytics. The app has no internet access: your documents never leave your device.
+
+<b>Viewing</b>
+• Smooth scrolling, pinch to zoom, night mode
+• Modes: continuous, one page at a time, two-page spread
+• Text search with highlights, table of contents and bookmarks
+• Password-protected documents, printing, sharing
+
+<b>Editing</b>
+• Highlight, underline, strike out, pen, shapes, arrows
+• Text (including Cyrillic), notes, images, stamps
+• Replace text, undo and redo
+• Edits are saved as standard annotations that other apps can show
+
+<b>Signatures and forms</b>
+• Handwritten signature drawn with a finger or imported from a photo, stored encrypted
+• Fill in PDF forms
+
+<b>Scanner and OCR</b>
+• Camera scanning with automatic edge detection and perspective correction
+• Filters: enhanced, black & white, grayscale
+• Offline text recognition for Russian and English
+
+<b>Tools</b>
+• Pages: rotate, delete, reorder, extract, insert, duplicate
+• Merge and split PDFs, compress, watermarks, page numbers, headers and footers
+• Password and restrictions (AES-256), password removal
+• Export to TXT, DOCX (text only), JPG/PNG; create PDF from photos
+
+Open source. Only free libraries are used: PdfBox-Android, Tesseract, CameraX, Jetpack.

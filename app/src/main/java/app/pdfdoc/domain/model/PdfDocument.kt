@@ -14,3 +14,11 @@ data class PdfDocument(
 enum class SortOrder { DATE, NAME, SIZE }
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+/** How the viewer lays out pages. In [SPREAD] one list item holds two pages side by side. */
+enum class ViewMode {
+    CONTINUOUS, SINGLE, SPREAD;
+
+    fun itemOf(page: Int) = if (this == SPREAD) page / 2 else page
+    fun pageOf(item: Int) = if (this == SPREAD) item * 2 else item
+}

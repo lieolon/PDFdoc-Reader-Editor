@@ -162,6 +162,22 @@ data class StampEdit(
     }
 }
 
+/** An opaque filled rectangle, used to cover existing content (e.g. text being replaced). */
+@Serializable
+@SerialName("cover")
+data class CoverEdit(
+    override val id: Long,
+    override val page: Int,
+    val box: Box,
+    val color: Int = 0xFFFFFFFF.toInt(),
+) : Edit {
+    override fun frame() = box
+    override fun translate(dx: Float, dy: Float) = copy(box = box.translate(dx, dy))
+    override fun withColor(color: Int) = copy(color = color)
+    override fun withId(id: Long) = copy(id = id)
+    override val resizable get() = true
+}
+
 /** Shared text layout constants so the on-screen overlay and the PDF appearance match. */
 object TextLayout {
     const val LINE_HEIGHT = 1.2f
@@ -176,6 +192,7 @@ fun resized(edit: Edit, target: Box): Edit {
         is ShapeEdit -> edit.copy(start = from.mapTo(target, edit.start), end = from.mapTo(target, edit.end))
         is ImageEdit -> edit.copy(box = target)
         is StampEdit -> edit.copy(box = target)
+        is CoverEdit -> edit.copy(box = target)
         is TextEdit -> {
             // Text keeps its proportions: scale by height and anchor at the new top-left.
             val k = if (from.height > 0f) target.height / from.height else 1f
@@ -197,6 +214,7 @@ fun onPage(edit: Edit, page: Int): Edit = when (edit) {
     is NoteEdit -> edit.copy(page = page)
     is ImageEdit -> edit.copy(page = page)
     is StampEdit -> edit.copy(page = page)
+    is CoverEdit -> edit.copy(page = page)
 }
 
 /** Applies a point transform to every coordinate of [edit]; boxes are re-normalized. */
@@ -213,5 +231,6 @@ fun mapPoints(edit: Edit, f: (Pt) -> Pt): Edit {
         is NoteEdit -> edit.copy(at = f(edit.at))
         is ImageEdit -> edit.copy(box = box(edit.box))
         is StampEdit -> edit.copy(box = box(edit.box))
+        is CoverEdit -> edit.copy(box = box(edit.box))
     }
 }

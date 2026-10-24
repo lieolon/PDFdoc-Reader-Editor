@@ -22,6 +22,7 @@ import app.pdfdoc.data.pdf.AnnotationIO
 import app.pdfdoc.data.pdf.AppearancePainter
 import app.pdfdoc.data.pdf.ArrowHead
 import app.pdfdoc.domain.edit.Box
+import app.pdfdoc.domain.edit.CoverEdit
 import app.pdfdoc.domain.edit.Edit
 import app.pdfdoc.domain.edit.ImageEdit
 import app.pdfdoc.domain.edit.InkEdit
@@ -53,6 +54,7 @@ class EditRenderer(private val textPaint: Paint) {
             is NoteEdit -> note(edit, k)
             is ImageEdit -> image(edit.imagePath)?.let { image(edit, it, k) }
             is StampEdit -> stamp(edit, k)
+            is CoverEdit -> drawRect(Color(edit.color), edit.box.topLeft(k), edit.box.size(k))
         }
     }
 

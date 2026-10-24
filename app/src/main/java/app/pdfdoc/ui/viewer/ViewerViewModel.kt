@@ -104,6 +104,7 @@ class ViewerViewModel @Inject constructor(
     private val renderCopies: RenderCopyBuilder,
     private val forms: PdfForms,
     private val bookmarkDao: BookmarkDao,
+    private val settings: app.pdfdoc.data.settings.SettingsRepository,
     @ApplicationContext private val context: Context,
     private val events: DocumentEvents,
     @IoDispatcher private val io: CoroutineDispatcher,
@@ -116,6 +117,13 @@ class ViewerViewModel @Inject constructor(
 
     private val _search = MutableStateFlow(SearchState())
     val search: StateFlow<SearchState> = _search.asStateFlow()
+
+    val viewMode: StateFlow<app.pdfdoc.domain.model.ViewMode> =
+        settings.viewMode.stateIn(viewModelScope, SharingStarted.Eagerly, app.pdfdoc.domain.model.ViewMode.CONTINUOUS)
+
+    fun setViewMode(mode: app.pdfdoc.domain.model.ViewMode) {
+        viewModelScope.launch { settings.setViewMode(mode) }
+    }
 
     private val _ocr = MutableStateFlow<OcrRun?>(null)
     val ocr: StateFlow<OcrRun?> = _ocr.asStateFlow()

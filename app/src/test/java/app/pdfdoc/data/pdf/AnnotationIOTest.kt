@@ -58,6 +58,7 @@ class AnnotationIOTest {
         TextEdit(5, 0, Box(50f, 300f, 250f, 330f), "Привет, мир!\nВторая строка 😀", 14f, red),
         NoteEdit(6, 1, Pt(300f, 40f), "Заметка", 0xFFFFEB3B.toInt()),
         StampEdit(7, 0, Box(300f, 500f, 420f, 530f), "ОДОБРЕНО", 0xFF2E7D32.toInt()),
+        app.pdfdoc.domain.edit.CoverEdit(8, 1, Box(50f, 600f, 250f, 620f)),
     )
 
     private fun pdf(pages: Int, rotation: Int = 0): File {
@@ -90,7 +91,7 @@ class AnnotationIOTest {
         writeAndReload(file, sampleEdits())
         PDDocument.load(file).use { doc ->
             val subtypes = doc.pages.flatMap { it.annotations }.map { it.subtype }.toSet()
-            assertEquals(setOf("Ink", "Line", "Circle", "Highlight", "FreeText", "Text", "Stamp"), subtypes)
+            assertEquals(setOf("Ink", "Line", "Circle", "Highlight", "FreeText", "Text", "Stamp", "Square"), subtypes)
             doc.pages.flatMap { it.annotations }.forEach { assertNotNull(it.normalAppearanceStream) }
         }
     }

@@ -102,16 +102,22 @@ class ScanViewModel @Inject constructor(
         _state.update {
             it.copy(
                 step = ScanStep.CROP,
-                crop = CropState(raw, bitmap.width, bitmap.height, Quad.full(bitmap.width, bitmap.height, 0.04f), null),
+                crop = CropState(
+                    raw, bitmap.width, bitmap.height,
+                    ScanImages.detectPage(bitmap) ?: Quad.full(bitmap.width, bitmap.height, 0.04f),
+                    null,
+                ),
             )
         }
     }
 
     fun import(uris: List<Uri>) = busy {
+        val detected = HashMap<File, Quad?>()
         val imported = uris.mapNotNull { uri ->
             runCatching {
                 val bitmap = Images.decode(context, uri, ScanImages.MAX_PAGE_SIDE)
                 val raw = ScanImages.saveJpeg(bitmap, File(dir, "raw-${UUID.randomUUID()}.jpg"))
+                detected[raw] = ScanImages.detectPage(bitmap)
                 Triple(raw, bitmap.width, bitmap.height)
             }.getOrNull()
         }
@@ -119,7 +125,7 @@ class ScanViewModel @Inject constructor(
             _events.send(ScanEvent.Message(R.string.editor_image_error))
         } else if (imported.size == 1) {
             val (raw, w, h) = imported.single()
-            _state.update { it.copy(step = ScanStep.CROP, crop = CropState(raw, w, h, Quad.full(w, h), null)) }
+            _state.update { it.copy(step = ScanStep.CROP, crop = CropState(raw, w, h, detected[raw] ?: Quad.full(w, h), null)) }
         } else {
             // Gallery images are usually already cropped: add them as they are, each can be re-cropped.
             val pages = imported.map { (raw, w, h) -> ScanPage(nextId++, raw, w, h, Quad.full(w, h), raw) }

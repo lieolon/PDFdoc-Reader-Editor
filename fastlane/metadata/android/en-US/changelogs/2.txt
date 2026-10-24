@@ -1,0 +1,4 @@
+• Automatic document edge detection in the scanner
+• View modes: one page at a time and two-page spread
+• Export to Word (DOCX)
+• Replace text in the editor

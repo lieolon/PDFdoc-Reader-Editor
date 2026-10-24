@@ -35,6 +35,7 @@ import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material.icons.filled.BrandingWatermark
 import androidx.compose.material.icons.filled.Compress
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
@@ -102,6 +103,7 @@ private enum class Tool(val icon: ImageVector, val title: Int, val description: 
     PROTECT(Icons.Default.Lock, R.string.tool_protect, R.string.tool_protect_desc),
     SPLIT(Icons.AutoMirrored.Filled.CallSplit, R.string.tool_split, R.string.tool_split_desc),
     TEXT(Icons.AutoMirrored.Filled.TextSnippet, R.string.tool_text_export, R.string.tool_text_export_desc),
+    DOCX(Icons.Default.Description, R.string.tool_docx, R.string.tool_docx_desc),
     IMAGES(Icons.Default.Image, R.string.tool_images_export, R.string.tool_images_export_desc),
 }
 
@@ -124,6 +126,7 @@ fun ToolsScreen(
     val textLauncher = rememberCreateDocument("text/plain") { uri ->
         uri?.let(viewModel::exportText)
     }
+    val docxLauncher = rememberCreateDocument(DOCX_MIME) { uri -> uri?.let(viewModel::exportDocx) }
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) folderAction?.invoke(uri)
         folderAction = null
@@ -202,11 +205,21 @@ fun ToolsScreen(
                     folderAction = { viewModel.exportImages(it, format) }
                     folderLauncher.launch(null)
                 }
+                Tool.DOCX -> {
+                    SheetTitle(R.string.tool_docx)
+                    Text(stringResource(R.string.tool_docx_warning), style = MaterialTheme.typography.bodyMedium)
+                    Button(
+                        onClick = { active = null; docxLauncher.launch("${viewModel.baseName}.docx") },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+                    ) { Text(stringResource(R.string.tool_docx_continue)) }
+                }
                 Tool.TEXT -> Unit
             }
         }
     }
 }
+
+private const val DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
 private class SaveActions(val replace: (DocumentJob) -> Unit, val copy: (DocumentJob, String) -> Unit)
 
