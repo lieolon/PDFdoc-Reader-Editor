@@ -3,7 +3,8 @@ package app.pdfdoc
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
@@ -12,13 +13,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pdfdoc.data.settings.SettingsRepository
 import app.pdfdoc.domain.model.ThemeMode
+import app.pdfdoc.ui.common.LocalDefaultFolder
 import app.pdfdoc.ui.navigation.AppNavHost
 import app.pdfdoc.ui.theme.PdfDocTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var settings: SettingsRepository
 
@@ -30,8 +32,11 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) incomingUri = intent.pdfUri()
         setContent {
             val themeMode by settings.themeMode.collectAsStateWithLifecycle(ThemeMode.SYSTEM)
-            PdfDocTheme(themeMode) {
-                AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+            val folder by settings.defaultFolder.collectAsStateWithLifecycle(null)
+            CompositionLocalProvider(LocalDefaultFolder provides folder?.let(Uri::parse)) {
+                PdfDocTheme(themeMode) {
+                    AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+                }
             }
         }
     }

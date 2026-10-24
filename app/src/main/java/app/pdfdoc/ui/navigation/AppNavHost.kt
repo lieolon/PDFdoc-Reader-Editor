@@ -13,6 +13,7 @@ import app.pdfdoc.ui.merge.MergeScreen
 import app.pdfdoc.ui.pages.PagesScreen
 import app.pdfdoc.ui.scan.ScanScreen
 import app.pdfdoc.ui.settings.SettingsScreen
+import app.pdfdoc.ui.tools.ToolsScreen
 import app.pdfdoc.ui.viewer.ViewerScreen
 
 @Composable
@@ -31,7 +32,8 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
             HomeScreen(
                 onOpenDocument = { nav.navigate(ViewerRoute(it.toString())) },
                 onMerge = { nav.navigate(MergeRoute) },
-                onScan = { nav.navigate(ScanRoute) },
+                onScan = { nav.navigate(ScanRoute()) },
+                onImagesToPdf = { nav.navigate(ScanRoute(fromImages = true)) },
                 onSettings = { nav.navigate(SettingsRoute) },
             )
         }
@@ -41,6 +43,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onPages = { uri -> nav.navigate(PagesRoute(uri)) },
                 onEdit = { uri -> nav.navigate(EditorRoute(uri)) },
                 onFillForm = { uri -> nav.navigate(FormRoute(uri)) },
+                onTools = { uri -> nav.navigate(ToolsRoute(uri)) },
             )
         }
         composable<PagesRoute> {
@@ -77,6 +80,14 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
         }
         composable<ScanRoute> {
             ScanScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri ->
+                    nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }
+                },
+            )
+        }
+        composable<ToolsRoute> {
+            ToolsScreen(
                 onBack = nav::popBackStack,
                 onOpenDocument = { uri ->
                     nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }

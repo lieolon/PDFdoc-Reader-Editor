@@ -1,6 +1,7 @@
 package app.pdfdoc.data.pdf
 
 import app.pdfdoc.domain.pdf.PageOperations
+import com.tom_roush.pdfbox.cos.COSDictionary
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.multipdf.PDFMergerUtility
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -45,6 +46,42 @@ class PdfBoxPageOperations @Inject constructor() : PageOperations {
             mergeDocuments(MemoryUsageSetting.setupTempFileOnly())
         }
         replace(tmp, target)
+    }
+
+    override fun duplicatePage(source: File, target: File, index: Int) = edit(source, target) { doc ->
+        val original = doc.getPage(index)
+        materializeInherited(original)
+        // Shallow copy shares content and resources; an annotation can belong to one page only.
+        val copy = PDPage(COSDictionary(original.cosObject).apply { removeItem(com.tom_roush.pdfbox.cos.COSName.ANNOTS) })
+        doc.addPage(copy)
+        val order = (0 until doc.numberOfPages - 1).toMutableList()
+        order.add(index + 1, doc.numberOfPages - 1)
+        reorder(doc, order)
+    }
+
+    override fun insertBlankPage(source: File, target: File, at: Int) = edit(source, target) { doc ->
+        val neighbour = doc.getPage((at - 1).coerceIn(0, doc.numberOfPages - 1))
+        val blank = PDPage(neighbour.mediaBox).apply { rotation = neighbour.rotation }
+        doc.addPage(blank)
+        val order = (0 until doc.numberOfPages - 1).toMutableList()
+        order.add(at.coerceIn(0, order.size), doc.numberOfPages - 1)
+        reorder(doc, order)
+    }
+
+    override fun insertDocument(source: File, other: File, target: File, at: Int) {
+        load(other).use { inserted ->
+            edit(source, target) { doc ->
+                val before = doc.numberOfPages
+                inserted.pages.forEach { page ->
+                    materializeInherited(page)
+                    doc.importPage(page)
+                }
+                val added = (before until doc.numberOfPages).toList()
+                val order = (0 until before).toMutableList()
+                order.addAll(at.coerceIn(0, before), added)
+                reorder(doc, order)
+            }
+        }
     }
 
     /** Leaves exactly [order] pages in the document, in that order. */

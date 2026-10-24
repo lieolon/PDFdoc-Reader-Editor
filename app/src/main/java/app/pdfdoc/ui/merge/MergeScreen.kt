@@ -1,5 +1,6 @@
 package app.pdfdoc.ui.merge
 
+import app.pdfdoc.ui.common.rememberCreateDocument
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -51,7 +52,7 @@ fun MergeScreen(
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) viewModel.add(uris)
     }
-    val create = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+    val create = rememberCreateDocument("application/pdf") { uri ->
         uri?.let(viewModel::mergeInto)
     }
     val defaultName = stringResource(R.string.merge_default_name)
@@ -97,7 +98,7 @@ fun MergeScreen(
                         )
                         if (state.failed) {
                             Text(
-                                stringResource(R.string.error_save),
+                                stringResource(if (state.lockedInput) R.string.merge_locked else R.string.error_save),
                                 color = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(top = 8.dp),
                             )

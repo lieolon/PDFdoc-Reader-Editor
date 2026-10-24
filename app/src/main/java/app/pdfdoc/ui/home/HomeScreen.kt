@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.FolderOpen
@@ -54,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -73,6 +75,7 @@ fun HomeScreen(
     onOpenDocument: (Uri) -> Unit,
     onMerge: () -> Unit,
     onScan: () -> Unit,
+    onImagesToPdf: () -> Unit,
     onSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -116,6 +119,14 @@ fun HomeScreen(
                         openLauncher.launch(arrayOf("application/pdf"))
                     }
                     QuickAction(Icons.Default.DocumentScanner, stringResource(R.string.home_scan), Modifier.weight(1f), onScan)
+                }
+            }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    QuickAction(Icons.Default.AddPhotoAlternate, stringResource(R.string.home_images_to_pdf), Modifier.weight(1f), onImagesToPdf)
                     QuickAction(Icons.Default.MergeType, stringResource(R.string.home_merge), Modifier.weight(1f), onMerge)
                 }
             }
@@ -173,7 +184,7 @@ fun HomeScreen(
 private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
     ElevatedCard(onClick = onClick, modifier = modifier.fillMaxHeight()) {
         Column(
-            Modifier.fillMaxSize().padding(vertical = 18.dp, horizontal = 6.dp),
+            Modifier.fillMaxSize().padding(vertical = 16.dp, horizontal = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(icon, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
@@ -229,7 +240,7 @@ private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> U
         headlineContent = { Text(doc.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         supportingContent = {
             val parts = listOfNotNull(
-                formatSize(doc.sizeBytes).ifEmpty { null },
+                formatSize(LocalContext.current, doc.sizeBytes).ifEmpty { null },
                 stringResource(R.string.pages_count, doc.pageCount),
                 formatDate(doc.lastOpenedAt),
             )

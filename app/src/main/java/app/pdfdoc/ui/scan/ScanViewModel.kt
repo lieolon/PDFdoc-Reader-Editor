@@ -5,6 +5,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.LruCache
+import androidx.lifecycle.SavedStateHandle
+import androidx.navigation.toRoute
+import app.pdfdoc.ui.navigation.ScanRoute
 import androidx.annotation.StringRes
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
@@ -65,6 +68,7 @@ sealed interface ScanEvent {
 
 @HiltViewModel
 class ScanViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     @ApplicationContext private val context: Context,
     private val files: FileStore,
     private val exporter: ScanExporter,
@@ -72,7 +76,12 @@ class ScanViewModel @Inject constructor(
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(ScanUiState())
+    /** Started as "images to PDF": open the gallery first, keep colors and skip OCR by default. */
+    val fromImages: Boolean = savedStateHandle.toRoute<ScanRoute>().fromImages
+
+    private val _state = MutableStateFlow(
+        if (fromImages) ScanUiState(filter = ScanFilter.COLOR, recognize = false) else ScanUiState(),
+    )
     val state: StateFlow<ScanUiState> = _state.asStateFlow()
 
     private val _events = Channel<ScanEvent>(Channel.BUFFERED)
@@ -84,7 +93,7 @@ class ScanViewModel @Inject constructor(
     private var exportJob: Job? = null
 
     val defaultName: String
-        get() = "Скан ${SimpleDateFormat("yyyy-MM-dd HH-mm", Locale.getDefault()).format(Date())}"
+        get() = context.getString(R.string.scan_default_name, SimpleDateFormat("yyyy-MM-dd HH-mm", Locale.US).format(Date()))
 
     // region Capture and import
 

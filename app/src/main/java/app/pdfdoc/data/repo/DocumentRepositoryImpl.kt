@@ -28,11 +28,11 @@ class DocumentRepositoryImpl @Inject constructor(
     override fun observeRecent(): Flow<List<PdfDocument>> =
         dao.observeAll().map { list -> list.map { it.toDomain() } }
 
-    override suspend fun recordOpened(uri: Uri): PdfDocument = withContext(io) {
+    override suspend fun recordOpened(uri: Uri, source: File?): PdfDocument = withContext(io) {
         files.takePersistablePermission(uri)
         val info = files.query(uri)
         val existing = dao.findByUri(uri.toString())
-        val (pageCount, thumb) = renderers.open(uri).use { session ->
+        val (pageCount, thumb) = (source?.let(renderers::open) ?: renderers.open(uri)).use { session ->
             session.pageCount to session.render(0, THUMB_WIDTH_PX)
         }
         val entity = DocumentEntity(
@@ -60,6 +60,10 @@ class DocumentRepositoryImpl @Inject constructor(
     override suspend fun remove(id: Long) = withContext(io) {
         dao.findById(id)?.thumbnailPath?.let { File(it).delete() }
         dao.delete(id)
+    }
+
+    override suspend fun removeByUri(uri: Uri) {
+        dao.findByUri(uri.toString())?.let { remove(it.id) }
     }
 
     private fun saveThumbnail(id: Long, bitmap: Bitmap): String {

@@ -6,6 +6,28 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.runtime.produceState
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Button
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
@@ -144,6 +166,7 @@ fun ViewerScreen(
     onPages: (String) -> Unit,
     onEdit: (String) -> Unit,
     onFillForm: (String) -> Unit,
+    onTools: (String) -> Unit,
     viewModel: ViewerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -152,6 +175,13 @@ fun ViewerScreen(
     val ocr by viewModel.ocr.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     var confirmOcr by remember { mutableStateOf(false) }
+    var ocrHidden by remember { mutableStateOf(false) }
+    var navigation by remember { mutableStateOf(false) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        // OCR runs either way; without the permission there is just no progress notification.
+        ocrHidden = false
+        viewModel.runOcr()
+    }
     LaunchedEffect(Unit) {
         viewModel.messages.collect { m -> snackbar.showSnackbar(context.getString(m.text, *m.args.toTypedArray())) }
     }
@@ -220,6 +250,16 @@ fun ViewerScreen(
                                         )
                                     }
                                     DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.viewer_navigation)) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
+                                        onClick = { menu = false; navigation = true },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.viewer_tools)) },
+                                        leadingIcon = { Icon(Icons.Default.Build, null) },
+                                        onClick = { menu = false; onTools(viewModel.uri.toString()) },
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.viewer_ocr)) },
                                         leadingIcon = { Icon(Icons.Default.DocumentScanner, null) },
                                         onClick = { menu = false; confirmOcr = true },
@@ -252,6 +292,20 @@ fun ViewerScreen(
                 CircularProgressIndicator()
             }
             ViewerUiState.Error -> MessageView(stringResource(R.string.error_open), modifier = Modifier.padding(padding))
+            ViewerUiState.Unavailable -> Column(
+                Modifier.fillMaxSize().padding(padding).padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(stringResource(R.string.error_unavailable), style = MaterialTheme.typography.titleMedium, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Spacer(Modifier.height(16.dp))
+                Button(onClick = { viewModel.removeFromRecent(onBack) }) { Text(stringResource(R.string.home_remove_from_list)) }
+            }
+            is ViewerUiState.NeedsPassword -> PasswordPrompt(
+                wrong = s.wrong,
+                onSubmit = viewModel::submitPassword,
+                modifier = Modifier.padding(padding),
+            )
             is ViewerUiState.Ready -> {
                 LaunchedEffect(s.generation) {
                     if (s.generation == 1) listState.scrollToItem(s.initialPage)
@@ -310,20 +364,40 @@ fun ViewerScreen(
         }
     }
 
+    if (navigation) {
+        val ready = state as? ViewerUiState.Ready
+        NavigationSheet(
+            viewModel = viewModel,
+            currentPage = listState.firstVisibleItemIndex,
+            onDismiss = { navigation = false },
+            onPage = { page ->
+                navigation = false
+                if (ready != null && page in ready.pageSizes.indices) scope.launch { listState.scrollToItem(page) }
+            },
+        )
+    }
     if (confirmOcr) {
         AlertDialog(
             onDismissRequest = { confirmOcr = false },
             title = { Text(stringResource(R.string.ocr_confirm_title)) },
             text = { Text(stringResource(R.string.ocr_confirm_text)) },
             confirmButton = {
-                TextButton(onClick = { confirmOcr = false; viewModel.runOcr() }) { Text(stringResource(R.string.ocr_start)) }
+                TextButton(onClick = {
+                    confirmOcr = false
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                        ocrHidden = false
+                        viewModel.runOcr()
+                    }
+                }) { Text(stringResource(R.string.ocr_start)) }
             },
             dismissButton = { TextButton(onClick = { confirmOcr = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
-    ocr?.let { run ->
+    ocr?.takeUnless { ocrHidden }?.let { run ->
         AlertDialog(
-            onDismissRequest = {},
+            onDismissRequest = { ocrHidden = true },
             title = { Text(stringResource(R.string.viewer_ocr)) },
             text = {
                 Column {
@@ -334,9 +408,11 @@ fun ViewerScreen(
                     } else {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     }
+                    Spacer(Modifier.height(12.dp))
+                    Text(stringResource(R.string.ocr_background_hint), style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = {},
+            confirmButton = { TextButton(onClick = { ocrHidden = true }) { Text(stringResource(R.string.ocr_hide)) } },
             dismissButton = { TextButton(onClick = viewModel::cancelOcr) { Text(stringResource(R.string.cancel)) } },
         )
     }
@@ -492,6 +568,121 @@ private fun PageImage(
                 highlights.forEach { draw(it, SearchHighlight) }
                 currentHit.forEach { draw(it, SearchCurrent) }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NavigationSheet(viewModel: ViewerViewModel, currentPage: Int, onDismiss: () -> Unit, onPage: (Int) -> Unit) {
+    var tab by remember { mutableStateOf(0) }
+    val outline by produceState<List<OutlineItem>?>(null) { value = viewModel.outline() }
+    val bookmarks by viewModel.bookmarks.collectAsStateWithLifecycle()
+    var newBookmark by remember { mutableStateOf(false) }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        TabRow(selectedTabIndex = tab) {
+            Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.viewer_outline)) })
+            Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.viewer_bookmarks)) })
+        }
+        LazyColumn(Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 480.dp).navigationBarsPadding()) {
+            if (tab == 0) {
+                val items = outline
+                when {
+                    items == null -> item { CircularProgressIndicator(Modifier.padding(24.dp)) }
+                    items.isEmpty() -> item { MessageView(stringResource(R.string.viewer_outline_empty), modifier = Modifier.heightIn(max = 200.dp)) }
+                    else -> items(items.size) { i ->
+                        val item = items[i]
+                        ListItem(
+                            headlineContent = { Text(item.title.ifEmpty { "—" }, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+                            trailingContent = { if (item.page >= 0) Text("${item.page + 1}") },
+                            modifier = Modifier
+                                .padding(start = (item.level * 16).dp)
+                                .clickable(enabled = item.page >= 0) { onPage(item.page) },
+                        )
+                    }
+                }
+            } else {
+                item {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.viewer_bookmark_add, currentPage + 1)) },
+                        leadingContent = { Icon(Icons.Default.BookmarkAdd, null) },
+                        modifier = Modifier.clickable { newBookmark = true },
+                    )
+                }
+                if (bookmarks.isEmpty()) {
+                    item { MessageView(stringResource(R.string.viewer_bookmarks_empty), modifier = Modifier.heightIn(max = 160.dp)) }
+                }
+                items(bookmarks.size) { i ->
+                    val b = bookmarks[i]
+                    ListItem(
+                        headlineContent = { Text(b.title) },
+                        supportingContent = { Text(stringResource(R.string.form_page, b.page + 1)) },
+                        leadingContent = { Icon(Icons.Default.Bookmark, null) },
+                        trailingContent = {
+                            IconButton(onClick = { viewModel.deleteBookmark(b.id) }) {
+                                Icon(Icons.Default.Close, stringResource(R.string.pages_delete))
+                            }
+                        },
+                        modifier = Modifier.clickable { onPage(b.page) },
+                    )
+                }
+            }
+        }
+    }
+    if (newBookmark) {
+        val default = stringResource(R.string.form_page, currentPage + 1)
+        var title by remember { mutableStateOf(default) }
+        AlertDialog(
+            onDismissRequest = { newBookmark = false },
+            title = { Text(stringResource(R.string.viewer_bookmark_title)) },
+            text = { OutlinedTextField(value = title, onValueChange = { title = it }, singleLine = true) },
+            confirmButton = {
+                TextButton(onClick = {
+                    newBookmark = false
+                    viewModel.addBookmark(currentPage, title.ifBlank { default })
+                }) { Text(stringResource(R.string.ok)) }
+            },
+            dismissButton = { TextButton(onClick = { newBookmark = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+}
+
+@Composable
+private fun PasswordPrompt(wrong: Boolean, onSubmit: (String) -> Unit, modifier: Modifier) {
+    var password by remember { mutableStateOf("") }
+    var visible by remember { mutableStateOf(false) }
+    Column(
+        modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(Icons.Default.Lock, null, Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.height(16.dp))
+        Text(stringResource(R.string.password_title), style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(16.dp))
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            label = { Text(stringResource(R.string.password_label)) },
+            singleLine = true,
+            isError = wrong,
+            supportingText = if (wrong) ({ Text(stringResource(R.string.password_wrong)) }) else null,
+            visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(onDone = { if (password.isNotEmpty()) onSubmit(password) }),
+            trailingIcon = {
+                IconButton(onClick = { visible = !visible }) {
+                    Icon(
+                        if (visible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        stringResource(R.string.password_show),
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = { onSubmit(password) }, enabled = password.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.password_open))
         }
     }
 }

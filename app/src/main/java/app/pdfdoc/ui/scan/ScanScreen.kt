@@ -1,5 +1,6 @@
 package app.pdfdoc.ui.scan
 
+import app.pdfdoc.ui.common.rememberCreateDocument
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -117,6 +118,14 @@ fun ScanScreen(
     }
 
     val exit = { if (state.pages.isNotEmpty()) confirmExit = true else onBack() }
+    val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
+        if (uris.isNotEmpty()) viewModel.import(uris) else if (state.pages.isEmpty()) onBack()
+    }
+    LaunchedEffect(Unit) {
+        if (viewModel.fromImages && state.pages.isEmpty()) {
+            gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+    }
     BackHandler {
         when (state.step) {
             ScanStep.CROP -> viewModel.cancelCrop()
@@ -269,7 +278,7 @@ private val CropColor = Color(0xFF42A5F5)
 @Composable
 private fun ReviewStep(state: ScanUiState, viewModel: ScanViewModel, snackbar: SnackbarHostState, onExit: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
-    val savePdf = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+    val savePdf = rememberCreateDocument("application/pdf") { uri ->
         uri?.let(viewModel::exportPdf)
     }
     val saveImages = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->

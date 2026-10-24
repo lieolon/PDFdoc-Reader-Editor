@@ -1,5 +1,6 @@
 package app.pdfdoc.ui.editor
 
+import app.pdfdoc.ui.common.rememberCreateDocument
 import android.graphics.Paint
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -147,7 +148,7 @@ fun EditorScreen(
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         uri?.let(viewModel::addImage)
     }
-    val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+    val saveAs = rememberCreateDocument("application/pdf") { uri ->
         uri?.let(viewModel::saveAs)
     }
 

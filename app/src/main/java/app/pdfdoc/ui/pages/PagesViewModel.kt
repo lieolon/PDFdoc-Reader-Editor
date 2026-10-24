@@ -55,6 +55,7 @@ sealed interface PagesEvent {
 class PagesViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val files: FileStore,
+    private val docs: app.pdfdoc.data.files.DocumentStore,
     private val ops: PageOperations,
     private val renderers: PdfRenderSessionFactory,
     private val documents: DocumentRepository,
@@ -80,7 +81,7 @@ class PagesViewModel @Inject constructor(
             runCatching {
                 withContext(io) {
                     val info = files.query(uri)
-                    val file = files.copyToWork(uri)
+                    val file = docs.openWorkingCopy(uri)
                     working = file
                     reopen(file)
                     info.name
@@ -129,6 +130,32 @@ class PagesViewModel @Inject constructor(
         mutate { ops.movePage(it, it, from, to) }
     }
 
+    fun duplicateSelected() {
+        val pages = state.value.selected.sortedDescending()
+        if (pages.isEmpty()) return
+        mutate { file -> pages.forEach { ops.duplicatePage(file, file, it) } }
+    }
+
+    /** Position for inserted pages: after the last selected page, or at the end. */
+    private fun insertPosition() = state.value.selected.maxOrNull()?.plus(1) ?: state.value.pageCount
+
+    fun insertBlank() {
+        val at = insertPosition()
+        mutate { ops.insertBlankPage(it, it, at) }
+    }
+
+    fun insertFrom(other: Uri) {
+        val at = insertPosition()
+        mutate { file ->
+            val inserted = docs.openWorkingCopy(other)
+            try {
+                ops.insertDocument(file, inserted, file, at)
+            } finally {
+                inserted.delete()
+            }
+        }
+    }
+
     fun undo() {
         val previous = undoStack.removeLastOrNull() ?: return
         viewModelScope.launch {
@@ -157,11 +184,11 @@ class PagesViewModel @Inject constructor(
             val ok = busy {
                 val out = files.newWorkFile()
                 ops.extractPages(source, out, pages)
-                files.writeTo(target, out)
+                docs.save(out, target, uri)
+                runCatching { documents.recordOpened(target, out) }
                 out.delete()
             }
             if (ok) {
-                runCatching { documents.recordOpened(target) }
                 _events.send(PagesEvent.Open(target))
             }
         }
@@ -170,7 +197,7 @@ class PagesViewModel @Inject constructor(
     fun save(closeAfter: Boolean = false) {
         val file = working ?: return
         viewModelScope.launch {
-            if (busy { files.writeTo(uri, file) }) {
+            if (busy { docs.save(file, uri) }) {
                 _state.update { it.copy(dirty = false) }
                 docEvents.notifyChanged(uri.toString())
                 _events.send(if (closeAfter) PagesEvent.Close else PagesEvent.Message(R.string.saved))
@@ -181,9 +208,9 @@ class PagesViewModel @Inject constructor(
     fun saveAs(target: Uri) {
         val file = working ?: return
         viewModelScope.launch {
-            if (busy { files.writeTo(target, file) }) {
+            if (busy { docs.save(file, target, uri) }) {
                 _state.update { it.copy(dirty = false) }
-                runCatching { documents.recordOpened(target) }
+                runCatching { documents.recordOpened(target, file) }
                 _events.send(PagesEvent.Open(target))
             }
         }

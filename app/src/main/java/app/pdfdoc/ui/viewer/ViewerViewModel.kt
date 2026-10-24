@@ -10,11 +10,23 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import app.pdfdoc.R
 import app.pdfdoc.core.IoDispatcher
-import app.pdfdoc.data.ocr.DocumentOcr
-import app.pdfdoc.data.ocr.OcrEngine
+import android.content.Context
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import app.pdfdoc.data.db.BookmarkDao
+import app.pdfdoc.data.db.BookmarkEntity
+import app.pdfdoc.data.ocr.OcrWorker
+import com.tom_roush.pdfbox.pdmodel.interactive.documentnavigation.outline.PDOutlineNode
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.receiveAsFlow
 import app.pdfdoc.data.files.DocumentEvents
+import app.pdfdoc.data.files.DocumentStore
 import app.pdfdoc.data.files.FileStore
+import app.pdfdoc.data.files.PasswordRequiredException
 import app.pdfdoc.data.pdf.PdfForms
 import app.pdfdoc.data.pdf.PdfRenderSession
 import app.pdfdoc.data.pdf.PdfRenderSessionFactory
@@ -48,6 +60,9 @@ import kotlinx.coroutines.withContext
 sealed interface ViewerUiState {
     data object Loading : ViewerUiState
     data object Error : ViewerUiState
+    data class NeedsPassword(val wrong: Boolean) : ViewerUiState
+    /** The file was moved, deleted or access to it was revoked. */
+    data object Unavailable : ViewerUiState
     data class Ready(
         val name: String,
         val pageSizes: List<Size>,
@@ -55,10 +70,13 @@ sealed interface ViewerUiState {
         /** Bumped when the document is reloaded so page images re-render. */
         val generation: Int,
         val hasForm: Boolean,
+        val documentId: Long,
     ) : ViewerUiState
 }
 
 data class OcrRun(val page: Int, val total: Int)
+
+data class OutlineItem(val title: String, val page: Int, val level: Int)
 
 data class ViewerMessage(@androidx.annotation.StringRes val text: Int, val args: List<Int> = emptyList())
 
@@ -82,10 +100,11 @@ class ViewerViewModel @Inject constructor(
     private val documents: DocumentRepository,
     private val renderers: PdfRenderSessionFactory,
     private val files: FileStore,
+    private val docs: DocumentStore,
     private val renderCopies: RenderCopyBuilder,
     private val forms: PdfForms,
-    private val documentOcr: DocumentOcr,
-    private val ocrEngine: OcrEngine,
+    private val bookmarkDao: BookmarkDao,
+    @ApplicationContext private val context: Context,
     private val events: DocumentEvents,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
@@ -131,6 +150,7 @@ class ViewerViewModel @Inject constructor(
         viewModelScope.launch {
             events.changed.filter { it == uri.toString() }.collect { load() }
         }
+        observeOcr()
     }
 
     private fun load() {
@@ -138,9 +158,9 @@ class ViewerViewModel @Inject constructor(
         viewModelScope.launch {
             val keepPage = currentPage.value
             runCatching {
-                val doc = documents.recordOpened(uri)
+                val work = withContext(io) { docs.openWorkingCopy(uri) }
+                val doc = documents.recordOpened(uri, work)
                 val (newSession, hasForm) = withContext(io) {
-                    val work = files.copyToWork(uri)
                     val flat = files.newWorkFile()
                     val render = if (renderCopies.build(work, flat, excludeOwn = false)) flat else work.also { flat.delete() }
                     val opened = renderers.open(render)
@@ -162,11 +182,21 @@ class ViewerViewModel @Inject constructor(
                     initialPage = (keepPage ?: doc.lastPage).coerceIn(0, newSession.pageCount - 1),
                     generation = generation,
                     hasForm = hasForm,
+                    documentId = doc.id,
                 )
             }.onSuccess {
                 _state.value = it
+                documentId.value = it.documentId
                 if (_search.value.searched) runSearch(_search.value.query)
-            }.onFailure { _state.value = ViewerUiState.Error }
+            }.onFailure { e ->
+                if (e !is PasswordRequiredException) android.util.Log.w("PDFdoc", "Cannot open $uri", e)
+                _state.value = when (e) {
+                    is PasswordRequiredException -> ViewerUiState.NeedsPassword(wrong = docs.password(uri) != null)
+                    is SecurityException, is java.io.FileNotFoundException -> ViewerUiState.Unavailable
+                    else -> ViewerUiState.Error
+                }
+                if (e is PasswordRequiredException) docs.forgetPassword(uri)
+            }
         }
     }
 
@@ -181,42 +211,108 @@ class ViewerViewModel @Inject constructor(
         currentPage.value = page
     }
 
-    /** Adds an OCR text layer to scanned pages and writes the document back. */
+    /** Starts background OCR of pages without a text layer; progress is observed in [ocr]. */
     fun runOcr() {
-        val source = workFile ?: return
-        if (ocrJob?.isActive == true) return
-        ocrJob = viewModelScope.launch {
-            _ocr.value = OcrRun(0, 0)
-            val result = runCatching {
-                withContext(io) {
-                    val out = files.newWorkFile()
-                    try {
-                        val pages = documentOcr.makeSearchable(source, out) { page, total -> _ocr.value = OcrRun(page, total) }
-                        if (pages > 0) files.writeTo(uri, out)
-                        pages
-                    } finally {
-                        out.delete()
+        val name = (state.value as? ViewerUiState.Ready)?.name.orEmpty()
+        watchingOcr = true
+        OcrWorker.start(context, uri, name)
+    }
+
+    fun cancelOcr() {
+        WorkManager.getInstance(context).cancelUniqueWork(OcrWorker.uniqueName(uri))
+        _ocr.value = null
+    }
+
+    /** Reports the result only for runs this screen started or saw running, not old finished ones. */
+    private var watchingOcr = false
+
+    private fun observeOcr() = viewModelScope.launch {
+        WorkManager.getInstance(context).getWorkInfosForUniqueWorkFlow(OcrWorker.uniqueName(uri)).collect { infos ->
+            val info = infos.lastOrNull() ?: return@collect
+            when (info.state) {
+                WorkInfo.State.ENQUEUED, WorkInfo.State.RUNNING, WorkInfo.State.BLOCKED -> {
+                    watchingOcr = true
+                    _ocr.value = OcrRun(info.progress.getInt(OcrWorker.KEY_PAGE, 0), info.progress.getInt(OcrWorker.KEY_TOTAL, 0))
+                }
+                WorkInfo.State.SUCCEEDED -> {
+                    _ocr.value = null
+                    if (watchingOcr) {
+                        watchingOcr = false
+                        val pages = info.outputData.getInt(OcrWorker.KEY_RECOGNIZED, 0)
+                        _messages.send(if (pages > 0) ViewerMessage(R.string.ocr_done, listOf(pages)) else ViewerMessage(R.string.ocr_nothing))
                     }
                 }
-            }
-            _ocr.value = null
-            result.onSuccess { pages ->
-                if (pages > 0) {
-                    events.notifyChanged(uri.toString())
-                    _messages.send(ViewerMessage(R.string.ocr_done, listOf(pages)))
-                } else {
-                    _messages.send(ViewerMessage(R.string.ocr_nothing))
+                WorkInfo.State.FAILED -> {
+                    _ocr.value = null
+                    if (watchingOcr) {
+                        watchingOcr = false
+                        val locked = info.outputData.getString(OcrWorker.KEY_ERROR) == OcrWorker.ERROR_LOCKED
+                        _messages.send(ViewerMessage(if (locked) R.string.ocr_locked else R.string.error_save))
+                    }
                 }
-            }.onFailure {
-                if (it !is kotlinx.coroutines.CancellationException) _messages.send(ViewerMessage(R.string.error_save))
+                WorkInfo.State.CANCELLED -> {
+                    _ocr.value = null
+                    watchingOcr = false
+                }
             }
         }
     }
 
-    fun cancelOcr() {
-        ocrEngine.cancel()
-        ocrJob?.cancel()
-        _ocr.value = null
+    // region Outline and bookmarks
+
+    private val documentId = MutableStateFlow<Long?>(null)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val bookmarks: StateFlow<List<BookmarkEntity>> = documentId.filterNotNull()
+        .flatMapLatest { bookmarkDao.observe(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun addBookmark(page: Int, title: String) {
+        val id = documentId.value ?: return
+        viewModelScope.launch {
+            bookmarkDao.insert(BookmarkEntity(documentId = id, page = page, title = title, createdAt = System.currentTimeMillis()))
+        }
+    }
+
+    fun deleteBookmark(id: Long) {
+        viewModelScope.launch { bookmarkDao.delete(id) }
+    }
+
+    /** The document's own table of contents (PDF outline), flattened with nesting levels. */
+    suspend fun outline(): List<OutlineItem> = withContext(io) {
+        textMutex.withLock {
+            val file = renderFile ?: return@withContext emptyList()
+            val doc = textDoc ?: PDDocument.load(file, MemoryUsageSetting.setupTempFileOnly()).also {
+                textDoc = it
+                pageTexts = arrayOfNulls(it.numberOfPages)
+            }
+            val pages = doc.pages.toList()
+            val items = mutableListOf<OutlineItem>()
+            fun walk(node: PDOutlineNode, level: Int) {
+                node.children().forEach { item ->
+                    val page = runCatching { item.findDestinationPage(doc) }.getOrNull()?.let(pages::indexOf) ?: -1
+                    items += OutlineItem(item.title.orEmpty().trim(), page, level)
+                    if (level < 6) walk(item, level + 1)
+                }
+            }
+            doc.documentCatalog.documentOutline?.let { walk(it, 0) }
+            items
+        }
+    }
+
+    // endregion
+
+    fun removeFromRecent(onDone: () -> Unit) {
+        viewModelScope.launch {
+            documents.removeByUri(uri)
+            onDone()
+        }
+    }
+
+    fun submitPassword(password: String) {
+        docs.rememberPassword(uri, password)
+        _state.value = ViewerUiState.Loading
+        load()
     }
 
     fun openSearch() = _search.update { it.copy(active = true) }

@@ -13,4 +13,13 @@ interface PageOperations {
     fun movePage(source: File, target: File, from: Int, to: Int)
     fun extractPages(source: File, target: File, pages: List<Int>)
     fun merge(sources: List<File>, target: File)
+
+    /** Inserts a copy of page [index] right after it. */
+    fun duplicatePage(source: File, target: File, index: Int)
+
+    /** Inserts an empty page at [at], sized like the page before it. */
+    fun insertBlankPage(source: File, target: File, at: Int)
+
+    /** Inserts every page of [other] at position [at]. */
+    fun insertDocument(source: File, other: File, target: File, at: Int)
 }

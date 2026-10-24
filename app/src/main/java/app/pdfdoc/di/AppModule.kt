@@ -36,6 +36,9 @@ object AppModule {
     fun signatureDao(db: AppDatabase): SignatureDao = db.signatureDao()
 
     @Provides
+    fun bookmarkDao(db: AppDatabase): app.pdfdoc.data.db.BookmarkDao = db.bookmarkDao()
+
+    @Provides
     @IoDispatcher
     fun ioDispatcher(): CoroutineDispatcher = Dispatchers.IO
 

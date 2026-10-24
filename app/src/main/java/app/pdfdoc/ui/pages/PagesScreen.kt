@@ -1,5 +1,6 @@
 package app.pdfdoc.ui.pages
 
+import app.pdfdoc.ui.common.rememberCreateDocument
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -28,7 +29,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.NoteAdd
+import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RotateRight
@@ -96,12 +100,11 @@ fun PagesScreen(
     var menu by remember { mutableStateOf(false) }
     val extractName = stringResource(R.string.pages_extract_name, state.name.removeSuffix(".pdf"))
 
-    val extractLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/pdf"),
-    ) { uri -> uri?.let(viewModel::extractSelected) }
-    val saveAsLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("application/pdf"),
-    ) { uri -> uri?.let(viewModel::saveAs) }
+    val extractLauncher = rememberCreateDocument("application/pdf") { uri -> uri?.let(viewModel::extractSelected) }
+    val insertLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::insertFrom)
+    }
+    val saveAsLauncher = rememberCreateDocument("application/pdf") { uri -> uri?.let(viewModel::saveAs) }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -149,6 +152,16 @@ fun PagesScreen(
                                 onClick = { menu = false; viewModel.selectAll() },
                             )
                             DropdownMenuItem(
+                                text = { Text(stringResource(R.string.pages_insert_blank)) },
+                                leadingIcon = { Icon(Icons.Default.NoteAdd, null) },
+                                onClick = { menu = false; viewModel.insertBlank() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.pages_insert_pdf)) },
+                                leadingIcon = { Icon(Icons.Default.PostAdd, null) },
+                                onClick = { menu = false; insertLauncher.launch(arrayOf("application/pdf")) },
+                            )
+                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.save_as)) },
                                 leadingIcon = { Icon(Icons.Default.Save, null) },
                                 onClick = { menu = false; saveAsLauncher.launch(state.name) },
@@ -163,6 +176,7 @@ fun PagesScreen(
                 BottomAppBar {
                     BottomAction(Icons.Default.RotateRight, stringResource(R.string.pages_rotate), viewModel::rotateSelected)
                     BottomAction(Icons.Default.Delete, stringResource(R.string.pages_delete), viewModel::deleteSelected)
+                    BottomAction(Icons.Default.ContentCopy, stringResource(R.string.pages_duplicate), viewModel::duplicateSelected)
                     BottomAction(Icons.Default.FileOpen, stringResource(R.string.pages_extract)) {
                         extractLauncher.launch(extractName)
                     }

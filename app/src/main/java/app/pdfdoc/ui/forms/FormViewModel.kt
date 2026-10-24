@@ -52,6 +52,7 @@ sealed interface FormEvent {
 class FormViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val files: FileStore,
+    private val docs: app.pdfdoc.data.files.DocumentStore,
     private val forms: PdfForms,
     private val documents: DocumentRepository,
     private val docEvents: DocumentEvents,
@@ -73,7 +74,7 @@ class FormViewModel @Inject constructor(
             runCatching {
                 withContext(io) {
                     val name = files.query(uri).name
-                    val work = files.copyToWork(uri)
+                    val work = docs.openWorkingCopy(uri)
                     working = work
                     name to forms.read(work)
                 }
@@ -95,7 +96,6 @@ class FormViewModel @Inject constructor(
     }
 
     fun saveAs(target: Uri) = write(target) {
-        runCatching { documents.recordOpened(target) }
         _events.send(FormEvent.Open(target))
     }
 
@@ -108,7 +108,8 @@ class FormViewModel @Inject constructor(
                 withContext(io) {
                     val out = files.newWorkFile()
                     forms.write(source, out, values)
-                    files.writeTo(target, out)
+                    docs.save(out, target, uri)
+                    if (target != uri) runCatching { documents.recordOpened(target, out) }
                     out.delete()
                 }
             }

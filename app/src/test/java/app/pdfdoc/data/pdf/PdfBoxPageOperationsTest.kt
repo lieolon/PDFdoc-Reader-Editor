@@ -88,6 +88,28 @@ class PdfBoxPageOperationsTest {
         assertEquals(listOf(10, 11, 12, 0, 1), ids(target))
     }
 
+    @Test
+    fun duplicatePage_insertsCopyAfterOriginal() {
+        val file = pdf(3)
+        ops.duplicatePage(file, file, 1)
+        assertEquals(listOf(0, 1, 1, 2), ids(file))
+    }
+
+    @Test
+    fun insertBlankPage_atPosition() {
+        val file = pdf(2)
+        ops.insertBlankPage(file, file, 1)
+        assertEquals(listOf(0, 0, 1), ids(file))
+        assertEquals(3, ops.pageCount(file))
+    }
+
+    @Test
+    fun insertDocument_atPosition() {
+        val file = pdf(3)
+        ops.insertDocument(file, pdf(2, offset = 10), file, 1)
+        assertEquals(listOf(0, 10, 11, 1, 2), ids(file))
+    }
+
     private fun pdf(pages: Int, offset: Int = 0): File {
         val file = tmp.newFile()
         PDDocument().use { doc ->

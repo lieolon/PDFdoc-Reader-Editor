@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PDFdoc</string>
+
+    <!-- Common -->
+    <string name="back">Назад</string>
+    <string name="cancel">Отмена</string>
+    <string name="ok">ОК</string>
+    <string name="save">Сохранить</string>
+    <string name="save_as">Сохранить как…</string>
+    <string name="undo">Отменить</string>
+    <string name="more">Ещё</string>
+    <string name="saved">Сохранено</string>
+
+    <!-- Home -->
+    <string name="home_search_hint">Поиск по названию</string>
+    <string name="home_open">Открыть PDF</string>
+    <string name="home_merge">Объединить PDF</string>
+    <string name="home_recent">Последние файлы</string>
+    <string name="home_empty_title">Здесь пока пусто</string>
+    <string name="home_empty_text">Откройте PDF-файл — он появится в списке последних.</string>
+    <string name="home_nothing_found">Ничего не найдено</string>
+    <string name="home_sort">Сортировка</string>
+    <string name="sort_date">По дате</string>
+    <string name="sort_name">По имени</string>
+    <string name="sort_size">По размеру</string>
+    <string name="home_remove_from_list">Убрать из списка</string>
+    <string name="home_settings">Настройки</string>
+    <string name="pages_count">%1$d стр.</string>
+
+    <!-- Viewer -->
+    <string name="viewer_pages">Страницы</string>
+    <string name="viewer_go_to_page">Перейти к странице</string>
+    <string name="viewer_page_number">Номер страницы (1–%1$d)</string>
+    <string name="viewer_night_mode">Ночной режим</string>
+    <string name="viewer_share">Отправить</string>
+    <string name="viewer_open_with">Открыть в другом приложении</string>
+    <string name="viewer_print">Печать</string>
+    <string name="viewer_search">Поиск</string>
+    <string name="viewer_search_hint">Найти в документе</string>
+    <string name="viewer_search_none">Нет совпадений</string>
+    <string name="viewer_search_count">%1$d из %2$d</string>
+    <string name="viewer_search_next">Следующее</string>
+    <string name="viewer_search_previous">Предыдущее</string>
+    <string name="viewer_edit">Редактировать</string>
+    <string name="viewer_fill_form">Заполнить форму</string>
+    <string name="viewer_navigation">Оглавление и закладки</string>
+    <string name="viewer_tools">Инструменты</string>
+    <string name="viewer_outline">Оглавление</string>
+    <string name="viewer_bookmarks">Закладки</string>
+    <string name="viewer_outline_empty">В документе нет оглавления</string>
+    <string name="viewer_bookmarks_empty">Закладок пока нет</string>
+    <string name="viewer_bookmark_add">Добавить закладку на стр. %1$d</string>
+    <string name="viewer_bookmark_title">Название закладки</string>
+    <string name="viewer_page_indicator">%1$d / %2$d</string>
+
+    <!-- Pages -->
+    <string name="pages_title">Страницы</string>
+    <string name="pages_selected">Выбрано: %1$d</string>
+    <string name="pages_select_all">Выбрать все</string>
+    <string name="pages_rotate">Повернуть</string>
+    <string name="pages_delete">Удалить</string>
+    <string name="pages_extract">Извлечь в новый PDF</string>
+    <string name="pages_duplicate">Дублировать</string>
+    <string name="pages_insert_blank">Вставить пустую страницу</string>
+    <string name="pages_insert_pdf">Вставить страницы из PDF…</string>
+    <string name="pages_extract_name">%1$s (фрагмент).pdf</string>
+    <string name="pages_hint">Нажмите, чтобы выбрать страницу. Удерживайте и перетаскивайте, чтобы изменить порядок. Новые страницы вставляются после выбранной.</string>
+    <string name="pages_cant_delete_all">Нельзя удалить все страницы документа</string>
+    <string name="pages_unsaved_title">Сохранить изменения?</string>
+    <string name="pages_unsaved_text">В документе есть несохранённые изменения.</string>
+    <string name="pages_discard">Не сохранять</string>
+
+    <!-- Merge -->
+    <string name="merge_title">Объединение PDF</string>
+    <string name="merge_add">Добавить файлы</string>
+    <string name="merge_run">Объединить</string>
+    <string name="merge_hint">Добавьте два или более PDF-файла и расставьте их в нужном порядке.</string>
+    <string name="merge_move_up">Выше</string>
+    <string name="merge_move_down">Ниже</string>
+    <string name="merge_remove">Убрать</string>
+    <string name="merge_default_name">Объединённый.pdf</string>
+
+    <!-- Editor -->
+    <string name="redo">Повторить</string>
+    <string name="editor_title">Редактирование</string>
+    <string name="editor_previous_page">Предыдущая страница</string>
+    <string name="editor_next_page">Следующая страница</string>
+    <string name="editor_width">Толщина</string>
+    <string name="editor_opacity">Прозрачность</string>
+    <string name="editor_text_size">Размер</string>
+    <string name="editor_edit_text">Изменить</string>
+    <string name="editor_text_title">Текст</string>
+    <string name="editor_note_title">Заметка</string>
+    <string name="editor_stamp_title">Текст штампа</string>
+    <string name="editor_no_text_layer">На странице нет текстового слоя — выделен прямоугольник</string>
+    <string name="editor_image_error">Не удалось добавить изображение</string>
+    <string name="tool_select">Выбор</string>
+    <string name="tool_highlight">Маркер</string>
+    <string name="tool_underline">Подчеркнуть</string>
+    <string name="tool_strikeout">Зачеркнуть</string>
+    <string name="tool_pen">Перо</string>
+    <string name="tool_rect">Прямоуг.</string>
+    <string name="tool_oval">Овал</string>
+    <string name="tool_line">Линия</string>
+    <string name="tool_arrow">Стрелка</string>
+    <string name="tool_text">Текст</string>
+    <string name="tool_note">Заметка</string>
+    <string name="tool_image">Картинка</string>
+    <string name="tool_signature">Подпись</string>
+    <string name="tool_stamp">Штамп</string>
+    <string name="stamp_approved">ОДОБРЕНО</string>
+    <string name="stamp_rejected">ОТКЛОНЕНО</string>
+    <string name="stamp_date">Сегодняшняя дата</string>
+    <string name="stamp_custom">Свой текст…</string>
+
+    <!-- Signatures -->
+    <string name="signature_title">Подписи</string>
+    <string name="signature_empty">Сохранённых подписей пока нет. Нарисуйте подпись или загрузите фото подписи на белой бумаге.</string>
+    <string name="signature_draw">Нарисовать</string>
+    <string name="signature_import">Из фото</string>
+    <string name="signature_delete">Удалить подпись</string>
+    <string name="signature_draw_title">Новая подпись</string>
+    <string name="signature_draw_hint">Распишитесь пальцем или стилусом. Подпись сохранится на устройстве в зашифрованном виде.</string>
+    <string name="signature_clear">Очистить</string>
+
+    <!-- Forms -->
+    <string name="form_title">Заполнение формы</string>
+    <string name="form_empty">В документе нет заполняемых полей</string>
+    <string name="form_page">Страница %1$d</string>
+    <string name="form_unsupported">Это поле нельзя заполнить здесь. Для подписи используйте инструмент «Подпись» в редакторе.</string>
+    <string name="form_choose">Выберите значение</string>
+
+    <!-- Scanner -->
+    <string name="home_scan">Сканировать</string>
+    <string name="home_images_to_pdf">Фото в PDF</string>
+    <string name="scan_default_name">Скан %1$s</string>
+    <string name="scan_camera_permission">Чтобы сканировать документы, разрешите доступ к камере. Снимки не покидают устройство.</string>
+    <string name="scan_allow_camera">Разрешить камеру</string>
+    <string name="scan_open_settings">Открыть настройки</string>
+    <string name="scan_from_gallery">Из галереи</string>
+    <string name="scan_flash">Вспышка</string>
+    <string name="scan_done">Готово</string>
+    <string name="scan_done_count">Готово (%1$d)</string>
+    <string name="scan_crop_title">Границы страницы</string>
+    <string name="scan_full_frame">Весь кадр</string>
+    <string name="scan_apply">Применить</string>
+    <string name="scan_review_title">Скан: %1$d стр.</string>
+    <string name="scan_add_page">Ещё страница</string>
+    <string name="scan_save_pdf">Сохранить PDF</string>
+    <string name="scan_save_images">Сохранить как изображения</string>
+    <string name="scan_images_saved">Изображения сохранены</string>
+    <string name="scan_ocr">Распознать текст</string>
+    <string name="scan_ocr_hint">Русский и английский. По PDF можно будет искать и копировать текст.</string>
+    <string name="scan_progress_page">Обработка: страница %1$d из %2$d</string>
+    <string name="scan_progress_ocr">Распознавание текста: страница %1$d из %2$d</string>
+    <string name="scan_discard_title">Выйти из сканирования?</string>
+    <string name="scan_discard_text">Отсканированные страницы не сохранены и будут удалены.</string>
+    <string name="filter_color">Цветной</string>
+    <string name="filter_enhanced">Улучшенный</string>
+    <string name="filter_gray">Оттенки серого</string>
+    <string name="filter_bw">Ч/Б</string>
+
+    <!-- OCR of existing documents -->
+    <string name="viewer_ocr">Распознать текст (OCR)</string>
+    <string name="ocr_confirm_title">Распознать текст?</string>
+    <string name="ocr_confirm_text">Страницы без текстового слоя (сканы, фото) будут распознаны на русском и английском. Документ будет выглядеть так же, но по нему можно будет искать и копировать текст. Это может занять несколько минут.</string>
+    <string name="ocr_start">Распознать</string>
+    <string name="ocr_nothing">Во всех страницах уже есть текст — распознавать нечего</string>
+    <string name="ocr_done">Текст распознан на страницах: %1$d</string>
+    <string name="ocr_progress">Распознавание: страница %1$d из %2$d</string>
+    <string name="ocr_progress_named">Страница %1$d из %2$d · %3$s</string>
+    <string name="ocr_channel">Распознавание текста</string>
+    <string name="ocr_hide">Скрыть</string>
+    <string name="ocr_background_hint">Можно закрыть это окно — распознавание продолжится в фоне.</string>
+    <string name="ocr_locked">Документ защищён паролем. Откройте его заново и запустите распознавание.</string>
+
+    <!-- Tools -->
+    <string name="tool_numbers">Номера страниц</string>
+    <string name="tool_numbers_desc">Нумерация в любом углу страницы</string>
+    <string name="tool_numbers_format">Формат</string>
+    <string name="tool_numbers_format_long">Страница {n} из {total}</string>
+    <string name="tool_numbers_first">Начать с номера</string>
+    <string name="tool_position">Положение</string>
+    <string name="tool_headers">Колонтитулы</string>
+    <string name="tool_headers_desc">Текст сверху и снизу каждой страницы</string>
+    <string name="tool_headers_hint">Можно вставлять: {n} — номер страницы, {total} — всего страниц, {date} — дата, {file} — имя файла.</string>
+    <string name="tool_header">Верхний колонтитул</string>
+    <string name="tool_footer">Нижний колонтитул</string>
+    <string name="tool_watermark">Водяной знак</string>
+    <string name="tool_watermark_desc">Текст или изображение поверх страниц</string>
+    <string name="tool_watermark_default">КОНФИДЕНЦИАЛЬНО</string>
+    <string name="tool_watermark_pick">Выбрать изображение</string>
+    <string name="tool_watermark_repick">Выбрать другое изображение</string>
+    <string name="tool_watermark_width">Ширина</string>
+    <string name="tool_watermark_angle">Угол</string>
+    <string name="tool_watermark_layout">Расположение</string>
+    <string name="tool_watermark_center">По центру</string>
+    <string name="tool_watermark_tiled">Плиткой</string>
+    <string name="tool_compress">Сжать PDF</string>
+    <string name="tool_compress_desc">Уменьшить размер за счёт изображений</string>
+    <string name="tool_protect">Пароль и защита</string>
+    <string name="tool_protect_desc">Пароль на открытие, запрет печати и копирования</string>
+    <string name="tool_split">Разделить PDF</string>
+    <string name="tool_split_desc">На несколько файлов по диапазонам страниц</string>
+    <string name="tool_split_pages">В документе страниц: %1$d</string>
+    <string name="tool_split_every">Каждые N страниц:</string>
+    <string name="tool_split_ranges">По диапазонам</string>
+    <string name="tool_split_ranges_hint">Например: 1-3, 5, 8- (до конца)</string>
+    <string name="tool_split_result">Получится файлов: %1$d</string>
+    <string name="tool_split_done">Создано файлов: %1$s</string>
+    <string name="tool_text_export">Экспорт в TXT</string>
+    <string name="tool_text_export_desc">Весь текст документа в текстовый файл</string>
+    <string name="tool_text_page">— Страница %1$d —</string>
+    <string name="tool_images_export">Экспорт в изображения</string>
+    <string name="tool_images_export_desc">Каждая страница — отдельный JPG или PNG</string>
+    <string name="tool_images_hint">Разрешение и качество меняются в настройках.</string>
+    <string name="tool_choose_folder">Выбрать папку</string>
+    <string name="tools_save_copy">Сохранить копию</string>
+    <string name="tools_replace">Заменить файл</string>
+    <string name="tools_progress_file">Файл %1$d из %2$d</string>
+    <string name="tools_compress_done">Сжато: %1$s → %2$s (−%3$s%%)</string>
+    <string name="tools_compress_nothing">Сжимать нечего: в документе нет крупных изображений</string>
+    <string name="compress_light">Слабое</string>
+    <string name="compress_light_desc">Почти без потери качества</string>
+    <string name="compress_medium">Среднее</string>
+    <string name="compress_medium_desc">Хороший баланс размера и качества</string>
+    <string name="compress_strong">Сильное</string>
+    <string name="compress_strong_desc">Минимальный размер, заметная потеря качества изображений</string>
+    <string name="compress_note">Сжимаются только изображения. Текст и векторная графика не меняются.</string>
+    <string name="protect_current">Документ сейчас защищён паролем.</string>
+    <string name="protect_change">Задать новый пароль</string>
+    <string name="protect_password">Пароль на открытие</string>
+    <string name="protect_confirm">Повторите пароль</string>
+    <string name="protect_restrict">Запретить</string>
+    <string name="protect_no_print">Печать</string>
+    <string name="protect_no_copy">Копирование текста</string>
+    <string name="protect_no_modify">Изменение документа</string>
+    <string name="protect_owner">Пароль владельца</string>
+    <string name="protect_owner_hint">Нужен, чтобы снять ограничения. Если пусто — совпадает с паролем на открытие.</string>
+    <string name="protect_note">Используется шифрование AES-256. Если забыть пароль, восстановить документ будет невозможно. Ограничения соблюдают не все программы.</string>
+    <string name="pos_top_left">Сверху слева</string>
+    <string name="pos_top_center">Сверху по центру</string>
+    <string name="pos_top_right">Сверху справа</string>
+    <string name="pos_bottom_left">Снизу слева</string>
+    <string name="pos_bottom_center">Снизу по центру</string>
+    <string name="pos_bottom_right">Снизу справа</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_theme">Тема оформления</string>
+    <string name="theme_system">Как в системе</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
+    <string name="settings_clear_cache">Очистить кэш</string>
+    <string name="settings_cache_cleared">Кэш очищен</string>
+    <string name="settings_section_look">Оформление</string>
+    <string name="settings_section_files">Файлы</string>
+    <string name="settings_section_data">Данные</string>
+    <string name="settings_section_about">О приложении</string>
+    <string name="settings_language">Язык</string>
+    <string name="language_system">Как в системе</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_english">English</string>
+    <string name="settings_folder">Папка для сохранения</string>
+    <string name="settings_folder_none">Не выбрана — каждый раз спрашивать</string>
+    <string name="settings_compress">Сжатие по умолчанию</string>
+    <string name="settings_dpi">Разрешение экспорта изображений</string>
+    <string name="dpi_96">96 dpi — для экрана</string>
+    <string name="dpi_150">150 dpi — стандартное</string>
+    <string name="dpi_300">300 dpi — для печати</string>
+    <string name="settings_jpeg">Качество JPEG: %1$d</string>
+    <string name="settings_signatures">Сохранённые подписи</string>
+    <string name="settings_signatures_desc">Просмотр и удаление</string>
+    <string name="settings_export">Экспорт настроек</string>
+    <string name="settings_export_desc">Подписи и документы не экспортируются</string>
+    <string name="settings_import">Импорт настроек</string>
+    <string name="settings_imported">Настройки восстановлены</string>
+    <string name="settings_import_invalid">Это не файл настроек PDFdoc</string>
+    <string name="settings_licenses">Открытые лицензии</string>
+    <string name="licenses_text">PDFdoc использует только свободное ПО:\n\n• PdfBox-Android — Apache 2.0\n• Tesseract4Android и Tesseract OCR — Apache 2.0\n• Модели tessdata_fast — Apache 2.0\n• Шрифт Roboto — Apache 2.0\n• AndroidX, Jetpack Compose, CameraX, Room, WorkManager — Apache 2.0\n• Dagger Hilt — Apache 2.0\n• Kotlin и kotlinx — Apache 2.0</string>
+    <string name="settings_privacy">Приложение работает без интернета: документы никогда не покидают устройство.</string>
+
+    <!-- Passwords -->
+    <string name="password_title">Документ защищён паролем</string>
+    <string name="password_label">Пароль</string>
+    <string name="password_wrong">Неверный пароль</string>
+    <string name="password_show">Показать пароль</string>
+    <string name="password_open">Открыть</string>
+    <string name="merge_locked">Один из файлов защищён паролем. Сначала откройте его в PDFdoc и введите пароль.</string>
+
+    <!-- Errors -->
+    <string name="error_open">Не удалось открыть файл. Возможно, он повреждён или защищён паролем.</string>
+    <string name="error_unavailable">Файл недоступен: его переместили, удалили или доступ к нему отозван.</string>
+    <string name="error_save">Не удалось сохранить файл.</string>
+    <string name="error_generic">Что-то пошло не так. Попробуйте ещё раз.</string>
+    <string name="working">Обработка…</string>
+</resources>

@@ -1,5 +1,6 @@
 package app.pdfdoc.ui.forms
 
+import app.pdfdoc.ui.common.rememberCreateDocument
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -72,7 +73,7 @@ fun FormScreen(
     val snackbar = remember { SnackbarHostState() }
     var menu by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
-    val saveAs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+    val saveAs = rememberCreateDocument("application/pdf") { uri ->
         uri?.let(viewModel::saveAs)
     }
 

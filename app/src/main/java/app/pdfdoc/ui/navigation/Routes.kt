@@ -23,5 +23,9 @@ data class EditorRoute(val uri: String)
 @Serializable
 data class FormRoute(val uri: String)
 
+/** [fromImages]: build a PDF from gallery images instead of starting with the camera. */
 @Serializable
-data object ScanRoute
+data class ScanRoute(val fromImages: Boolean = false)
+
+@Serializable
+data class ToolsRoute(val uri: String)

@@ -26,11 +26,13 @@ data class MergeUiState(
     val items: List<MergeItem> = emptyList(),
     val busy: Boolean = false,
     val failed: Boolean = false,
+    val lockedInput: Boolean = false,
 )
 
 @HiltViewModel
 class MergeViewModel @Inject constructor(
     private val files: FileStore,
+    private val docs: app.pdfdoc.data.files.DocumentStore,
     private val ops: PageOperations,
     private val documents: DocumentRepository,
     @IoDispatcher private val io: CoroutineDispatcher,
@@ -65,7 +67,8 @@ class MergeViewModel @Inject constructor(
             val inputs = mutableListOf<File>()
             val result = runCatching {
                 withContext(io) {
-                    items.forEach { inputs += files.copyToWork(it.uri) }
+                    // Protected files must have been opened (and unlocked) in the viewer first.
+                    items.forEach { inputs += docs.openWorkingCopy(it.uri) }
                     val out = files.newWorkFile()
                     try {
                         ops.merge(inputs, out)
@@ -77,7 +80,13 @@ class MergeViewModel @Inject constructor(
                 documents.recordOpened(target)
             }
             withContext(io) { inputs.forEach(File::delete) }
-            _state.update { it.copy(busy = false, failed = result.isFailure) }
+            _state.update {
+                it.copy(
+                    busy = false,
+                    failed = result.isFailure,
+                    lockedInput = result.exceptionOrNull() is app.pdfdoc.data.files.PasswordRequiredException,
+                )
+            }
             if (result.isSuccess) _merged.send(target)
         }
     }

@@ -120,6 +120,7 @@ class EditorViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     @ApplicationContext private val context: Context,
     private val files: FileStore,
+    private val docs: app.pdfdoc.data.files.DocumentStore,
     private val annotations: AnnotationIO,
     private val renderCopies: RenderCopyBuilder,
     private val renderers: PdfRenderSessionFactory,
@@ -158,7 +159,7 @@ class EditorViewModel @Inject constructor(
             runCatching {
                 withContext(io) {
                     val name = files.query(uri).name
-                    val work = files.copyToWork(uri)
+                    val work = docs.openWorkingCopy(uri)
                     working = work
                     val existing = PDDocument.load(work, MemoryUsageSetting.setupTempFileOnly()).use {
                         annotations.read(it, imageDir)
@@ -450,7 +451,7 @@ class EditorViewModel @Inject constructor(
     }
 
     fun saveAs(target: Uri) = write(target) {
-        runCatching { documents.recordOpened(target) }
+        working?.let { runCatching { documents.recordOpened(target, it) } }
         _events.send(EditorEvent.Open(target))
     }
 
@@ -466,12 +467,14 @@ class EditorViewModel @Inject constructor(
                         annotations.write(doc, edits)
                         doc.save(out)
                     }
-                    files.writeTo(target, out)
+                    docs.save(out, target, uri)
                     if (target == uri) {
                         source.delete()
                         working = out
                     } else {
-                        out.delete()
+                        // Keep the saved result for the "recently opened" thumbnail of the new file.
+                        source.delete()
+                        working = out
                     }
                 }
             }

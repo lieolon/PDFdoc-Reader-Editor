@@ -25,12 +25,9 @@ import java.util.Date
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-fun formatSize(bytes: Long): String = when {
-    bytes < 0 -> ""
-    bytes < 1024 -> "$bytes Б"
-    bytes < 1024 * 1024 -> "%.0f КБ".format(bytes / 1024.0)
-    else -> "%.1f МБ".format(bytes / (1024.0 * 1024.0))
-}
+/** Localized file size ("1.2 MB" / "1,2 МБ"); empty for unknown sizes. */
+fun formatSize(context: android.content.Context, bytes: Long): String =
+    if (bytes < 0) "" else android.text.format.Formatter.formatShortFileSize(context, bytes)
 
 fun formatDate(millis: Long): String =
     DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(millis))

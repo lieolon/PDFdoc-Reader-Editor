@@ -82,6 +82,10 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.tesseract)
     implementation(libs.androidx.documentfile)
+    implementation(libs.work.runtime)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
+    implementation(libs.androidx.appcompat)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
