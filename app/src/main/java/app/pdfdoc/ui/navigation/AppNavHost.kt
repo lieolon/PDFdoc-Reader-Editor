@@ -6,6 +6,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import app.pdfdoc.ui.editor.EditorScreen
+import app.pdfdoc.ui.forms.FormScreen
 import app.pdfdoc.ui.home.HomeScreen
 import app.pdfdoc.ui.merge.MergeScreen
 import app.pdfdoc.ui.pages.PagesScreen
@@ -35,6 +37,8 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
             ViewerScreen(
                 onBack = nav::popBackStack,
                 onPages = { uri -> nav.navigate(PagesRoute(uri)) },
+                onEdit = { uri -> nav.navigate(EditorRoute(uri)) },
+                onFillForm = { uri -> nav.navigate(FormRoute(uri)) },
             )
         }
         composable<PagesRoute> {
@@ -49,6 +53,22 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
             MergeScreen(
                 onBack = nav::popBackStack,
                 onMerged = { uri ->
+                    nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }
+                },
+            )
+        }
+        composable<EditorRoute> {
+            EditorScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri ->
+                    nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }
+                },
+            )
+        }
+        composable<FormRoute> {
+            FormScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri ->
                     nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }
                 },
             )

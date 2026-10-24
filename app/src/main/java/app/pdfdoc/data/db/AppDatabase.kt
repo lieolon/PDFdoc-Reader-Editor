@@ -10,4 +10,5 @@ import androidx.room.RoomDatabase
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun documentDao(): DocumentDao
+    abstract fun signatureDao(): SignatureDao
 }

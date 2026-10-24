@@ -36,6 +36,14 @@
     <string name="viewer_share">Отправить</string>
     <string name="viewer_open_with">Открыть в другом приложении</string>
     <string name="viewer_print">Печать</string>
+    <string name="viewer_search">Поиск</string>
+    <string name="viewer_search_hint">Найти в документе</string>
+    <string name="viewer_search_none">Нет совпадений</string>
+    <string name="viewer_search_count">%1$d из %2$d</string>
+    <string name="viewer_search_next">Следующее</string>
+    <string name="viewer_search_previous">Предыдущее</string>
+    <string name="viewer_edit">Редактировать</string>
+    <string name="viewer_fill_form">Заполнить форму</string>
     <string name="viewer_page_indicator">%1$d / %2$d</string>
 
     <!-- Pages -->
@@ -61,6 +69,56 @@
     <string name="merge_move_down">Ниже</string>
     <string name="merge_remove">Убрать</string>
     <string name="merge_default_name">Объединённый.pdf</string>
+
+    <!-- Editor -->
+    <string name="redo">Повторить</string>
+    <string name="editor_title">Редактирование</string>
+    <string name="editor_previous_page">Предыдущая страница</string>
+    <string name="editor_next_page">Следующая страница</string>
+    <string name="editor_width">Толщина</string>
+    <string name="editor_opacity">Прозрачность</string>
+    <string name="editor_text_size">Размер</string>
+    <string name="editor_edit_text">Изменить</string>
+    <string name="editor_text_title">Текст</string>
+    <string name="editor_note_title">Заметка</string>
+    <string name="editor_stamp_title">Текст штампа</string>
+    <string name="editor_no_text_layer">На странице нет текстового слоя — выделен прямоугольник</string>
+    <string name="editor_image_error">Не удалось добавить изображение</string>
+    <string name="tool_select">Выбор</string>
+    <string name="tool_highlight">Маркер</string>
+    <string name="tool_underline">Подчеркнуть</string>
+    <string name="tool_strikeout">Зачеркнуть</string>
+    <string name="tool_pen">Перо</string>
+    <string name="tool_rect">Прямоуг.</string>
+    <string name="tool_oval">Овал</string>
+    <string name="tool_line">Линия</string>
+    <string name="tool_arrow">Стрелка</string>
+    <string name="tool_text">Текст</string>
+    <string name="tool_note">Заметка</string>
+    <string name="tool_image">Картинка</string>
+    <string name="tool_signature">Подпись</string>
+    <string name="tool_stamp">Штамп</string>
+    <string name="stamp_approved">ОДОБРЕНО</string>
+    <string name="stamp_rejected">ОТКЛОНЕНО</string>
+    <string name="stamp_date">Сегодняшняя дата</string>
+    <string name="stamp_custom">Свой текст…</string>
+
+    <!-- Signatures -->
+    <string name="signature_title">Подписи</string>
+    <string name="signature_empty">Сохранённых подписей пока нет. Нарисуйте подпись или загрузите фото подписи на белой бумаге.</string>
+    <string name="signature_draw">Нарисовать</string>
+    <string name="signature_import">Из фото</string>
+    <string name="signature_delete">Удалить подпись</string>
+    <string name="signature_draw_title">Новая подпись</string>
+    <string name="signature_draw_hint">Распишитесь пальцем или стилусом. Подпись сохранится на устройстве в зашифрованном виде.</string>
+    <string name="signature_clear">Очистить</string>
+
+    <!-- Forms -->
+    <string name="form_title">Заполнение формы</string>
+    <string name="form_empty">В документе нет заполняемых полей</string>
+    <string name="form_page">Страница %1$d</string>
+    <string name="form_unsupported">Это поле нельзя заполнить здесь. Для подписи используйте инструмент «Подпись» в редакторе.</string>
+    <string name="form_choose">Выберите значение</string>
 
     <!-- Settings -->
     <string name="settings_title">Настройки</string>

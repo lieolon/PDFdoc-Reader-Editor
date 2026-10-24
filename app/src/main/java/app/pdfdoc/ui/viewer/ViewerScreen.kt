@@ -6,6 +6,22 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.icons.automirrored.filled.Assignment
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.text.input.ImeAction
+import app.pdfdoc.domain.edit.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -119,9 +135,12 @@ private val InvertColors = ColorFilter.colorMatrix(
 fun ViewerScreen(
     onBack: () -> Unit,
     onPages: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    onFillForm: (String) -> Unit,
     viewModel: ViewerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val search by viewModel.search.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var chromeVisible by rememberSaveable { mutableStateOf(true) }
     var nightMode by rememberSaveable { mutableStateOf(false) }
@@ -136,50 +155,76 @@ fun ViewerScreen(
 
     Scaffold(
         topBar = {
-            AnimatedVisibility(chromeVisible, enter = fadeIn(), exit = fadeOut()) {
-                TopAppBar(
-                    title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { nightMode = !nightMode }) {
-                            Icon(
-                                if (nightMode) Icons.Default.LightMode else Icons.Default.DarkMode,
-                                stringResource(R.string.viewer_night_mode),
-                            )
-                        }
-                        IconButton(onClick = { onPages(viewModel.uri.toString()) }) {
-                            Icon(Icons.Default.GridView, stringResource(R.string.viewer_pages))
-                        }
-                        Box {
-                            IconButton(onClick = { menu = true }) {
-                                Icon(Icons.Default.MoreVert, stringResource(R.string.more))
+            AnimatedVisibility(chromeVisible || search.active, enter = fadeIn(), exit = fadeOut()) {
+                if (search.active) {
+                    SearchBar(
+                        state = search,
+                        onQueryChange = viewModel::onQueryChange,
+                        onSubmit = viewModel::submitSearch,
+                        onNext = viewModel::nextHit,
+                        onPrevious = viewModel::previousHit,
+                        onClose = viewModel::closeSearch,
+                    )
+                } else {
+                    TopAppBar(
+                        title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                             }
-                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                val share = stringResource(R.string.viewer_share)
-                                val openWith = stringResource(R.string.viewer_open_with)
-                                DropdownMenuItem(
-                                    text = { Text(share) },
-                                    leadingIcon = { Icon(Icons.Default.Share, null) },
-                                    onClick = { menu = false; sharePdf(context, viewModel.uri, share) },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(openWith) },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
-                                    onClick = { menu = false; openPdfWith(context, viewModel.uri, openWith) },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.viewer_print)) },
-                                    leadingIcon = { Icon(Icons.Default.Print, null) },
-                                    onClick = { menu = false; printPdf(context, viewModel.uri, title) },
-                                )
+                        },
+                        actions = {
+                            val ready = state is ViewerUiState.Ready
+                            IconButton(onClick = viewModel::openSearch, enabled = ready) {
+                                Icon(Icons.Default.Search, stringResource(R.string.viewer_search))
                             }
-                        }
-                    },
-                )
+                            IconButton(onClick = { onEdit(viewModel.uri.toString()) }, enabled = ready) {
+                                Icon(Icons.Default.Edit, stringResource(R.string.viewer_edit))
+                            }
+                            IconButton(onClick = { onPages(viewModel.uri.toString()) }, enabled = ready) {
+                                Icon(Icons.Default.GridView, stringResource(R.string.viewer_pages))
+                            }
+                            Box {
+                                IconButton(onClick = { menu = true }) {
+                                    Icon(Icons.Default.MoreVert, stringResource(R.string.more))
+                                }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    val share = stringResource(R.string.viewer_share)
+                                    val openWith = stringResource(R.string.viewer_open_with)
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.viewer_night_mode)) },
+                                        leadingIcon = {
+                                            Icon(if (nightMode) Icons.Default.LightMode else Icons.Default.DarkMode, null)
+                                        },
+                                        onClick = { menu = false; nightMode = !nightMode },
+                                    )
+                                    if ((state as? ViewerUiState.Ready)?.hasForm == true) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.viewer_fill_form)) },
+                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Assignment, null) },
+                                            onClick = { menu = false; onFillForm(viewModel.uri.toString()) },
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(share) },
+                                        leadingIcon = { Icon(Icons.Default.Share, null) },
+                                        onClick = { menu = false; sharePdf(context, viewModel.uri, share) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(openWith) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                                        onClick = { menu = false; openPdfWith(context, viewModel.uri, openWith) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.viewer_print)) },
+                                        leadingIcon = { Icon(Icons.Default.Print, null) },
+                                        onClick = { menu = false; printPdf(context, viewModel.uri, title) },
+                                    )
+                                }
+                            }
+                        },
+                    )
+                }
             }
         },
     ) { padding ->
@@ -195,6 +240,10 @@ fun ViewerScreen(
                 LaunchedEffect(listState) {
                     snapshotFlow { listState.firstVisibleItemIndex }.collect(viewModel::onPageVisible)
                 }
+                val currentHit = search.currentHit
+                LaunchedEffect(currentHit) {
+                    currentHit?.let { listState.animateScrollToItem(it.page) }
+                }
                 Box(Modifier.fillMaxSize()) {
                     PdfPages(
                         state = s,
@@ -203,6 +252,7 @@ fun ViewerScreen(
                         topPadding = padding.calculateTopPadding(),
                         onTap = { chromeVisible = !chromeVisible },
                         pageBitmap = viewModel::pageBitmap,
+                        search = search,
                     )
                     AnimatedVisibility(
                         chromeVisible,
@@ -250,6 +300,7 @@ private fun PdfPages(
     topPadding: Dp,
     onTap: () -> Unit,
     pageBitmap: suspend (Int, Int) -> Bitmap?,
+    search: SearchState,
 ) {
     var scale by rememberSaveable { mutableFloatStateOf(1f) }
     val hScroll = rememberScrollState()
@@ -327,6 +378,9 @@ private fun PdfPages(
                 val size = state.pageSizes[index]
                 PageImage(
                     index = index,
+                    pageWidthPt = size.width.toFloat(),
+                    highlights = search.hits.filter { it.page == index }.flatMap { it.rects },
+                    currentHit = search.currentHit?.takeIf { it.page == index }?.rects.orEmpty(),
                     aspectRatio = size.width.toFloat() / size.height,
                     width = pageWidth,
                     renderWidth = renderWidth,
@@ -342,6 +396,9 @@ private fun PdfPages(
 @Composable
 private fun PageImage(
     index: Int,
+    pageWidthPt: Float,
+    highlights: List<Box>,
+    currentHit: List<Box>,
     aspectRatio: Float,
     width: Dp,
     renderWidth: Int,
@@ -373,7 +430,77 @@ private fun PageImage(
         } else {
             CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
         }
+        if (highlights.isNotEmpty()) {
+            Canvas(Modifier.fillMaxSize()) {
+                val k = size.width / pageWidthPt
+                fun draw(b: Box, color: Color) = drawRect(
+                    color,
+                    topLeft = Offset(b.left * k, b.top * k),
+                    size = androidx.compose.ui.geometry.Size(b.width * k, b.height * k),
+                    blendMode = BlendMode.Multiply,
+                )
+                highlights.forEach { draw(it, SearchHighlight) }
+                currentHit.forEach { draw(it, SearchCurrent) }
+            }
+        }
     }
+}
+
+private val SearchHighlight = Color(0x66FFEB3B)
+private val SearchCurrent = Color(0xAAFF9800)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SearchBar(
+    state: SearchState,
+    onQueryChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    TopAppBar(
+        navigationIcon = {
+            IconButton(onClick = onClose) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
+            }
+        },
+        title = {
+            TextField(
+                value = state.query,
+                onValueChange = onQueryChange,
+                placeholder = { Text(stringResource(R.string.viewer_search_hint)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); onSubmit() }),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                ),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            )
+        },
+        actions = {
+            when {
+                state.running && state.hits.isEmpty() ->
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                state.searched -> Text(
+                    if (state.hits.isEmpty()) stringResource(R.string.viewer_search_none)
+                    else stringResource(R.string.viewer_search_count, state.current + 1, state.hits.size),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            IconButton(onClick = onPrevious, enabled = state.hits.size > 1) {
+                Icon(Icons.Default.KeyboardArrowUp, stringResource(R.string.viewer_search_previous))
+            }
+            IconButton(onClick = onNext, enabled = state.hits.size > 1) {
+                Icon(Icons.Default.KeyboardArrowDown, stringResource(R.string.viewer_search_next))
+            }
+        },
+    )
 }
 
 @Composable

@@ -16,3 +16,9 @@ data object MergeRoute
 
 @Serializable
 data object SettingsRoute
+
+@Serializable
+data class EditorRoute(val uri: String)
+
+@Serializable
+data class FormRoute(val uri: String)

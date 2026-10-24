@@ -6,6 +6,7 @@ import app.pdfdoc.core.DefaultDispatcher
 import app.pdfdoc.core.IoDispatcher
 import app.pdfdoc.data.db.AppDatabase
 import app.pdfdoc.data.db.DocumentDao
+import app.pdfdoc.data.db.SignatureDao
 import app.pdfdoc.data.pdf.PdfBoxPageOperations
 import app.pdfdoc.data.repo.DocumentRepositoryImpl
 import app.pdfdoc.domain.pdf.PageOperations
@@ -30,6 +31,9 @@ object AppModule {
 
     @Provides
     fun documentDao(db: AppDatabase): DocumentDao = db.documentDao()
+
+    @Provides
+    fun signatureDao(db: AppDatabase): SignatureDao = db.signatureDao()
 
     @Provides
     @IoDispatcher
