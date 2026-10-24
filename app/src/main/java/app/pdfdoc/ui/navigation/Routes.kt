@@ -22,3 +22,6 @@ data class EditorRoute(val uri: String)
 
 @Serializable
 data class FormRoute(val uri: String)
+
+@Serializable
+data object ScanRoute

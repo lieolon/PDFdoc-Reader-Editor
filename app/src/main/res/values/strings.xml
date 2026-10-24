@@ -120,6 +120,43 @@
     <string name="form_unsupported">Это поле нельзя заполнить здесь. Для подписи используйте инструмент «Подпись» в редакторе.</string>
     <string name="form_choose">Выберите значение</string>
 
+    <!-- Scanner -->
+    <string name="home_scan">Сканировать</string>
+    <string name="scan_camera_permission">Чтобы сканировать документы, разрешите доступ к камере. Снимки не покидают устройство.</string>
+    <string name="scan_allow_camera">Разрешить камеру</string>
+    <string name="scan_open_settings">Открыть настройки</string>
+    <string name="scan_from_gallery">Из галереи</string>
+    <string name="scan_flash">Вспышка</string>
+    <string name="scan_done">Готово</string>
+    <string name="scan_done_count">Готово (%1$d)</string>
+    <string name="scan_crop_title">Границы страницы</string>
+    <string name="scan_full_frame">Весь кадр</string>
+    <string name="scan_apply">Применить</string>
+    <string name="scan_review_title">Скан: %1$d стр.</string>
+    <string name="scan_add_page">Ещё страница</string>
+    <string name="scan_save_pdf">Сохранить PDF</string>
+    <string name="scan_save_images">Сохранить как изображения</string>
+    <string name="scan_images_saved">Изображения сохранены</string>
+    <string name="scan_ocr">Распознать текст</string>
+    <string name="scan_ocr_hint">Русский и английский. По PDF можно будет искать и копировать текст.</string>
+    <string name="scan_progress_page">Обработка: страница %1$d из %2$d</string>
+    <string name="scan_progress_ocr">Распознавание текста: страница %1$d из %2$d</string>
+    <string name="scan_discard_title">Выйти из сканирования?</string>
+    <string name="scan_discard_text">Отсканированные страницы не сохранены и будут удалены.</string>
+    <string name="filter_color">Цветной</string>
+    <string name="filter_enhanced">Улучшенный</string>
+    <string name="filter_gray">Оттенки серого</string>
+    <string name="filter_bw">Ч/Б</string>
+
+    <!-- OCR of existing documents -->
+    <string name="viewer_ocr">Распознать текст (OCR)</string>
+    <string name="ocr_confirm_title">Распознать текст?</string>
+    <string name="ocr_confirm_text">Страницы без текстового слоя (сканы, фото) будут распознаны на русском и английском. Документ будет выглядеть так же, но по нему можно будет искать и копировать текст. Это может занять несколько минут.</string>
+    <string name="ocr_start">Распознать</string>
+    <string name="ocr_nothing">Во всех страницах уже есть текст — распознавать нечего</string>
+    <string name="ocr_done">Текст распознан на страницах: %1$d</string>
+    <string name="ocr_progress">Распознавание: страница %1$d из %2$d</string>
+
     <!-- Settings -->
     <string name="settings_title">Настройки</string>
     <string name="settings_theme">Тема оформления</string>

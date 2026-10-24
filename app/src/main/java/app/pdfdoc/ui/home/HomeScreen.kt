@@ -9,6 +9,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material.icons.filled.MoreVert
@@ -68,6 +72,7 @@ import app.pdfdoc.ui.common.rememberFileBitmap
 fun HomeScreen(
     onOpenDocument: (Uri) -> Unit,
     onMerge: () -> Unit,
+    onScan: () -> Unit,
     onSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
@@ -104,12 +109,13 @@ fun HomeScreen(
         ) {
             item {
                 Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     QuickAction(Icons.Default.FolderOpen, stringResource(R.string.home_open), Modifier.weight(1f)) {
                         openLauncher.launch(arrayOf("application/pdf"))
                     }
+                    QuickAction(Icons.Default.DocumentScanner, stringResource(R.string.home_scan), Modifier.weight(1f), onScan)
                     QuickAction(Icons.Default.MergeType, stringResource(R.string.home_merge), Modifier.weight(1f), onMerge)
                 }
             }
@@ -165,13 +171,18 @@ fun HomeScreen(
 
 @Composable
 private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, onClick: () -> Unit) {
-    ElevatedCard(onClick = onClick, modifier = modifier) {
+    ElevatedCard(onClick = onClick, modifier = modifier.fillMaxHeight()) {
         Column(
-            Modifier.fillMaxWidth().padding(vertical = 20.dp, horizontal = 12.dp),
+            Modifier.fillMaxSize().padding(vertical = 18.dp, horizontal = 6.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Icon(icon, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-            Text(label, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
     }
 }

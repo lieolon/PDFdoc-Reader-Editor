@@ -8,7 +8,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
+import app.pdfdoc.R
 import app.pdfdoc.core.IoDispatcher
+import app.pdfdoc.data.ocr.DocumentOcr
+import app.pdfdoc.data.ocr.OcrEngine
+import kotlinx.coroutines.flow.receiveAsFlow
 import app.pdfdoc.data.files.DocumentEvents
 import app.pdfdoc.data.files.FileStore
 import app.pdfdoc.data.pdf.PdfForms
@@ -54,6 +58,10 @@ sealed interface ViewerUiState {
     ) : ViewerUiState
 }
 
+data class OcrRun(val page: Int, val total: Int)
+
+data class ViewerMessage(@androidx.annotation.StringRes val text: Int, val args: List<Int> = emptyList())
+
 data class SearchHit(val page: Int, val rects: List<Box>)
 
 data class SearchState(
@@ -76,7 +84,9 @@ class ViewerViewModel @Inject constructor(
     private val files: FileStore,
     private val renderCopies: RenderCopyBuilder,
     private val forms: PdfForms,
-    events: DocumentEvents,
+    private val documentOcr: DocumentOcr,
+    private val ocrEngine: OcrEngine,
+    private val events: DocumentEvents,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -88,6 +98,13 @@ class ViewerViewModel @Inject constructor(
     private val _search = MutableStateFlow(SearchState())
     val search: StateFlow<SearchState> = _search.asStateFlow()
 
+    private val _ocr = MutableStateFlow<OcrRun?>(null)
+    val ocr: StateFlow<OcrRun?> = _ocr.asStateFlow()
+    private var ocrJob: Job? = null
+
+    private val _messages = kotlinx.coroutines.channels.Channel<ViewerMessage>(kotlinx.coroutines.channels.Channel.BUFFERED)
+    val messages = _messages.receiveAsFlow()
+
     private var session: PdfRenderSession? = null
     private var generation = 0
     private val currentPage = MutableStateFlow<Int?>(null)
@@ -95,6 +112,7 @@ class ViewerViewModel @Inject constructor(
     /** Private files backing the current session: the working copy and, if needed, its flattened copy. */
     private var tempFiles: List<File> = emptyList()
     private var renderFile: File? = null
+    private var workFile: File? = null
 
     private val textMutex = Mutex()
     private var textDoc: PDDocument? = null
@@ -130,6 +148,7 @@ class ViewerViewModel @Inject constructor(
                         releaseFiles()
                         tempFiles = listOf(work, flat)
                         renderFile = render
+                        workFile = work
                     }
                     opened to forms.hasFields(work)
                 }
@@ -160,6 +179,44 @@ class ViewerViewModel @Inject constructor(
 
     fun onPageVisible(page: Int) {
         currentPage.value = page
+    }
+
+    /** Adds an OCR text layer to scanned pages and writes the document back. */
+    fun runOcr() {
+        val source = workFile ?: return
+        if (ocrJob?.isActive == true) return
+        ocrJob = viewModelScope.launch {
+            _ocr.value = OcrRun(0, 0)
+            val result = runCatching {
+                withContext(io) {
+                    val out = files.newWorkFile()
+                    try {
+                        val pages = documentOcr.makeSearchable(source, out) { page, total -> _ocr.value = OcrRun(page, total) }
+                        if (pages > 0) files.writeTo(uri, out)
+                        pages
+                    } finally {
+                        out.delete()
+                    }
+                }
+            }
+            _ocr.value = null
+            result.onSuccess { pages ->
+                if (pages > 0) {
+                    events.notifyChanged(uri.toString())
+                    _messages.send(ViewerMessage(R.string.ocr_done, listOf(pages)))
+                } else {
+                    _messages.send(ViewerMessage(R.string.ocr_nothing))
+                }
+            }.onFailure {
+                if (it !is kotlinx.coroutines.CancellationException) _messages.send(ViewerMessage(R.string.error_save))
+            }
+        }
+    }
+
+    fun cancelOcr() {
+        ocrEngine.cancel()
+        ocrJob?.cancel()
+        _ocr.value = null
     }
 
     fun openSearch() = _search.update { it.copy(active = true) }

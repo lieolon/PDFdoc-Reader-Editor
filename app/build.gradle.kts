@@ -33,6 +33,10 @@ android {
     buildFeatures {
         compose = true
     }
+    androidResources {
+        // Tesseract models are already compressed; storing them avoids a slow inflate on first OCR.
+        noCompress += "traineddata"
+    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -72,6 +76,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.pdfbox.android)
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.tesseract)
+    implementation(libs.androidx.documentfile)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

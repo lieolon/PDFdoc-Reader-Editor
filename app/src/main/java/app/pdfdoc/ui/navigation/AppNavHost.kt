@@ -11,6 +11,7 @@ import app.pdfdoc.ui.forms.FormScreen
 import app.pdfdoc.ui.home.HomeScreen
 import app.pdfdoc.ui.merge.MergeScreen
 import app.pdfdoc.ui.pages.PagesScreen
+import app.pdfdoc.ui.scan.ScanScreen
 import app.pdfdoc.ui.settings.SettingsScreen
 import app.pdfdoc.ui.viewer.ViewerScreen
 
@@ -30,6 +31,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
             HomeScreen(
                 onOpenDocument = { nav.navigate(ViewerRoute(it.toString())) },
                 onMerge = { nav.navigate(MergeRoute) },
+                onScan = { nav.navigate(ScanRoute) },
                 onSettings = { nav.navigate(SettingsRoute) },
             )
         }
@@ -67,6 +69,14 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
         }
         composable<FormRoute> {
             FormScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri ->
+                    nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }
+                },
+            )
+        }
+        composable<ScanRoute> {
+            ScanScreen(
                 onBack = nav::popBackStack,
                 onOpenDocument = { uri ->
                     nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }

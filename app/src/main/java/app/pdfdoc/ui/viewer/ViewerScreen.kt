@@ -6,6 +6,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.text.KeyboardActions
@@ -142,6 +149,12 @@ fun ViewerScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val search by viewModel.search.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val ocr by viewModel.ocr.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    var confirmOcr by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { m -> snackbar.showSnackbar(context.getString(m.text, *m.args.toTypedArray())) }
+    }
     var chromeVisible by rememberSaveable { mutableStateOf(true) }
     var nightMode by rememberSaveable { mutableStateOf(false) }
     var goToDialog by remember { mutableStateOf(false) }
@@ -154,6 +167,7 @@ fun ViewerScreen(
     BackHandler(enabled = !chromeVisible) { chromeVisible = true }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             AnimatedVisibility(chromeVisible || search.active, enter = fadeIn(), exit = fadeOut()) {
                 if (search.active) {
@@ -205,6 +219,11 @@ fun ViewerScreen(
                                             onClick = { menu = false; onFillForm(viewModel.uri.toString()) },
                                         )
                                     }
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.viewer_ocr)) },
+                                        leadingIcon = { Icon(Icons.Default.DocumentScanner, null) },
+                                        onClick = { menu = false; confirmOcr = true },
+                                    )
                                     DropdownMenuItem(
                                         text = { Text(share) },
                                         leadingIcon = { Icon(Icons.Default.Share, null) },
@@ -289,6 +308,37 @@ fun ViewerScreen(
                 }
             }
         }
+    }
+
+    if (confirmOcr) {
+        AlertDialog(
+            onDismissRequest = { confirmOcr = false },
+            title = { Text(stringResource(R.string.ocr_confirm_title)) },
+            text = { Text(stringResource(R.string.ocr_confirm_text)) },
+            confirmButton = {
+                TextButton(onClick = { confirmOcr = false; viewModel.runOcr() }) { Text(stringResource(R.string.ocr_start)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmOcr = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    ocr?.let { run ->
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.viewer_ocr)) },
+            text = {
+                Column {
+                    if (run.total > 0) {
+                        Text(stringResource(R.string.ocr_progress, run.page, run.total))
+                        Spacer(Modifier.height(12.dp))
+                        LinearProgressIndicator(progress = { run.page / run.total.toFloat() }, modifier = Modifier.fillMaxWidth())
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = viewModel::cancelOcr) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 
