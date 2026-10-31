@@ -50,6 +50,10 @@ android {
     buildFeatures {
         compose = true
     }
+    bundle {
+        // Users can switch the app language in settings, so every language must be on the device.
+        language { enableSplit = false }
+    }
     androidResources {
         // Tesseract models are already compressed; storing them avoids a slow inflate on first OCR.
         noCompress += "traineddata"
