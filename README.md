@@ -5,6 +5,10 @@
 
 Подробное ТЗ, архитектура и план релиза — в [docs/SPEC.md](docs/SPEC.md).
 
+Страница проекта: https://lielon.com/projects/pdfdoc/ · [политика конфиденциальности](https://lielon.com/projects/pdfdoc/privacy/) ·
+[условия использования](https://lielon.com/projects/pdfdoc/terms/) · [поддержка](https://lielon.com/projects/pdfdoc/support/) ·
+info@lielon.com. Издатель — LIELON DOO.
+
 ## Что уже работает (этап 1)
 
 - Главный экран: последние файлы с миниатюрами, поиск, сортировка, открытие PDF.

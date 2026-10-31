@@ -1,6 +1,7 @@
 # Политика конфиденциальности PDFdoc
 
-_Опубликована: https://lielon.com/pdfdoc/privacy/ (ru), https://lielon.com/en/pdfdoc/privacy/ (en)._
+_Черновик. Действующая версия опубликована на странице проекта:
+https://lielon.com/projects/pdfdoc/privacy/ (ru), https://lielon.com/en/projects/pdfdoc/privacy/ (en)._
 
 _Действует с 1 ноября 2026 года._
 
@@ -19,7 +20,7 @@ PDFdoc не собирает, не хранит на серверах и не п
 - **Удаление данных.** Всё, что хранит приложение, удаляется вместе с ним или через
   «Настройки → Очистить кэш».
 
-Вопросы: info@lielon.com
+Вопросы: info@lielon.com · https://lielon.com/projects/pdfdoc/support/
 
 ---
 
@@ -40,4 +41,4 @@ PDFdoc does not collect personal data, store it on servers or share it with thir
 - **Deleting data.** Everything the app stores is removed when you uninstall it or via
   Settings → Clear cache.
 
-Contact: info@lielon.com
+Contact: info@lielon.com · https://lielon.com/en/projects/pdfdoc/support/

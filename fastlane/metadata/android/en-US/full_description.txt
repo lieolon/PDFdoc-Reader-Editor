@@ -28,3 +28,5 @@ PDFdoc is a completely free PDF app. No ads, subscriptions, accounts or analytic
 • Export to TXT, DOCX (text only), JPG/PNG; create PDF from photos
 
 Open source. Only free libraries are used: PdfBox-Android, Tesseract, CameraX, Jetpack.
+
+Project page and support: https://lielon.com/en/projects/pdfdoc/ · info@lielon.com

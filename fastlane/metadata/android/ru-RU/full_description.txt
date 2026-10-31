@@ -28,3 +28,5 @@ PDFdoc — полностью бесплатное приложение для �
 • Экспорт в TXT, DOCX (только текст), JPG/PNG; создание PDF из фото
 
 Открытый исходный код. Используются только свободные библиотеки: PdfBox-Android, Tesseract, CameraX, Jetpack.
+
+Страница проекта и поддержка: https://lielon.com/projects/pdfdoc/ · info@lielon.com
