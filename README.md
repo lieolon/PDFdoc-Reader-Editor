@@ -7,7 +7,7 @@
 
 Страница проекта: https://lielon.com/projects/pdfdoc/ · [политика конфиденциальности](https://lielon.com/projects/pdfdoc/privacy/) ·
 [условия использования](https://lielon.com/projects/pdfdoc/terms/) · [поддержка](https://lielon.com/projects/pdfdoc/support/) ·
-info@lielon.com. Издатель — LIELON DOO.
+info@lielon.com.
 
 ## Что уже работает (этап 1)
 
