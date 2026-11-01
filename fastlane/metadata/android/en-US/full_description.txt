@@ -1,32 +1,37 @@
-PDFdoc is a completely free PDF app. No ads, subscriptions, accounts or analytics. The app has no internet access: your documents never leave your device.
+PDFdoc is a completely free PDF app. Every feature others put behind a subscription is free here. No ads, subscriptions, accounts or analytics. The app has no internet access: your documents never leave your device.
 
-<b>Viewing</b>
-• Smooth scrolling, pinch to zoom, night mode
-• Modes: continuous, one page at a time, two-page spread
-• Text search with highlights, table of contents and bookmarks
-• Password-protected documents, printing, sharing
+<b>Viewing and reading</b>
+• Smooth scrolling, zoom, night mode, page layouts and tabs
+• Search, table of contents, bookmarks, clickable links
+• Select and copy text, translate, share
+• Read aloud, reading mode with large text, presentation, auto-scroll
+• Two documents side by side
 
-<b>Editing</b>
-• Highlight, underline, strike out, pen, shapes, arrows
-• Text (including Cyrillic), notes, images, stamps
-• Replace text, undo and redo
-• Edits are saved as standard annotations that other apps can show
+<b>Editing and comments</b>
+• Highlighter, underline, pen, smart pen, eraser, shapes, text, notes, stamps
+• Replace text, edit pictures of the document, add links
+• Comments panel with replies
+• Distance, perimeter and area measuring with a scale
+• Create form fields and fill PDF forms
 
-<b>Signatures and forms</b>
-• Handwritten signature drawn with a finger or imported from a photo, stored encrypted
-• Fill in PDF forms
+<b>Signatures and security</b>
+• Handwritten signatures and certificate-based digital signatures, signature check
+• Password (AES-256), print and copy restrictions
+• True redaction: words, phone numbers, e-mails, card numbers removed for good
+• Remove metadata and hidden information
 
-<b>Scanner and OCR</b>
-• Camera scanning with automatic edge detection and perspective correction
-• Filters: enhanced, black & white, grayscale
-• Offline text recognition for Russian and English
+<b>Scanner and text recognition</b>
+• Auto-capture, edge detection, ID card and book modes, shadow removal
+• Offline text recognition in 10 languages
 
 <b>Tools</b>
-• Pages: rotate, delete, reorder, extract, insert, duplicate
-• Merge and split PDFs, compress, watermarks, page numbers, headers and footers
-• Password and restrictions (AES-256), password removal
-• Export to TXT, DOCX (text only), JPG/PNG; create PDF from photos
+• Pages: rotate, delete, reorder, extract, insert, crop margins, resize
+• Merge, split, compress, watermarks, page numbers, headers and footers
+• Table of contents, attachments, document properties, PDF/A for archiving
+• Compare two PDFs
+• Export to Word, Excel, EPUB, HTML, Markdown, TXT, JPG/PNG; PDF from photos and text
+• Batch processing, folders, full-text search across documents, fingerprint lock
 
-Open source. Only free libraries are used: PdfBox-Android, Tesseract, CameraX, Jetpack.
+Open source. Only free libraries are used.
 
 Project page and support: https://lielon.com/en/projects/pdfdoc/ · info@lielon.com
