@@ -302,6 +302,8 @@
     <string name="merge_locked">One of the files is password-protected. Open it in PDFdoc and enter the password first.</string>
 
     <!-- Errors -->
+    <string name="import_converting">Converting to PDF…</string>
+    <string name="import_failed">Couldn’t open this file. Supported: PDF, TXT, Markdown, HTML, DOCX, ODT, RTF, EPUB, FB2 and images.</string>
     <string name="error_open">Couldn’t open the file. It may be damaged or password-protected.</string>
     <string name="error_unavailable">The file is unavailable: it was moved, deleted or access to it was revoked.</string>
     <string name="error_save">Couldn’t save the file.</string>

@@ -22,7 +22,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
 
     LaunchedEffect(incomingUri) {
         if (incomingUri != null) {
-            nav.navigate(ViewerRoute(incomingUri.toString())) { launchSingleTop = true }
+            nav.navigate(ImportRoute(incomingUri.toString())) { launchSingleTop = true }
             onIncomingHandled()
         }
     }
@@ -31,6 +31,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
         composable<HomeRoute> {
             HomeScreen(
                 onOpenDocument = { nav.navigate(ViewerRoute(it.toString())) },
+                onOpenFile = { nav.navigate(ImportRoute(it.toString())) },
                 onMerge = { nav.navigate(MergeRoute) },
                 onScan = { nav.navigate(ScanRoute()) },
                 onImagesToPdf = { nav.navigate(ScanRoute(fromImages = true)) },
@@ -49,6 +50,12 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onReader = { uri, page -> nav.navigate(ReaderRoute(uri, page)) },
                 onPresent = { uri, page -> nav.navigate(PresentRoute(uri, page)) },
                 onOpenDocument = { uri -> nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() } },
+            )
+        }
+        composable<ImportRoute> {
+            app.pdfdoc.ui.importer.ImportScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri -> nav.navigate(ViewerRoute(uri.toString())) { popUpTo<ImportRoute> { inclusive = true } } },
             )
         }
         composable<PagesRoute> {

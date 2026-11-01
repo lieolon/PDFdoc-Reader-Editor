@@ -284,7 +284,7 @@ class TextToPdfViewModel @Inject constructor(
             busy.value = true
             val ok = runCatching {
                 withContext(io) {
-                    val text = context.contentResolver.openInputStream(from)?.use { it.readBytes().decodeToString() } ?: error("read")
+                    val text = context.contentResolver.openInputStream(from)?.use { app.pdfdoc.data.convert.TextDecoding.decode(it.readBytes()) } ?: error("read")
                     val out = files.newWorkFile()
                     try {
                         converter.convert(text, format, sourceName.value.substringBeforeLast('.'), out)

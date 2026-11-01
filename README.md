@@ -84,6 +84,12 @@ info@lielon.com.
 Сознательно не делаем: облако и совместную работу, ИИ-чат, свободное редактирование абзацев, точную конвертацию Office → PDF
 (подробнее в [docs/competitive-analysis.md](docs/competitive-analysis.md)).
 
+## v1.2.1 — другие форматы
+
+- Открытие TXT (любая кодировка, включая Windows-1251), Markdown, HTML, DOCX, ODT, RTF, EPUB, FB2 и изображений.
+  Файл преобразуется в PDF в `files/converted/` (FileProvider), исходник не меняется; повторное открытие того же файла
+  берёт готовый PDF. Код: `data/convert/DocumentFormats.kt`, `DocumentImporter.kt`, `ui/importer/ImportScreen.kt`.
+
 ## Сборка
 
 Нужны JDK 17 и Android SDK (platform 36).

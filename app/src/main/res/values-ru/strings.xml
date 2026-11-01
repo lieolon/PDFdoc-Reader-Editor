@@ -302,6 +302,8 @@
     <string name="merge_locked">Один из файлов защищён паролем. Сначала откройте его в PDFdoc и введите пароль.</string>
 
     <!-- Errors -->
+    <string name="import_converting">Преобразование в PDF…</string>
+    <string name="import_failed">Не удалось открыть файл. Поддерживаются PDF, TXT, Markdown, HTML, DOCX, ODT, RTF, EPUB, FB2 и изображения.</string>
     <string name="error_open">Не удалось открыть файл. Возможно, он повреждён или защищён паролем.</string>
     <string name="error_unavailable">Файл недоступен: его переместили, удалили или доступ к нему отозван.</string>
     <string name="error_save">Не удалось сохранить файл.</string>

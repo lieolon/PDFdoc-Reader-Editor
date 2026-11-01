@@ -76,6 +76,8 @@ import app.pdfdoc.ui.common.rememberFileBitmap
 @Composable
 fun HomeScreen(
     onOpenDocument: (Uri) -> Unit,
+    /** A file picked by the user: PDF, or another format to convert first. */
+    onOpenFile: (Uri) -> Unit,
     onMerge: () -> Unit,
     onScan: () -> Unit,
     onImagesToPdf: () -> Unit,
@@ -86,7 +88,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(onOpenDocument)
+        uri?.let(onOpenFile)
     }
     var sortMenu by remember { mutableStateOf(false) }
     var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
@@ -123,7 +125,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     QuickAction(Icons.Default.FolderOpen, stringResource(R.string.home_open), Modifier.weight(1f)) {
-                        openLauncher.launch(arrayOf("application/pdf"))
+                        openLauncher.launch(app.pdfdoc.data.convert.ImportFormats.MIME_TYPES)
                     }
                     QuickAction(Icons.Default.DocumentScanner, stringResource(R.string.home_scan), Modifier.weight(1f), onScan)
                 }

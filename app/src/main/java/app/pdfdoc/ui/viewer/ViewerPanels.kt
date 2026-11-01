@@ -288,7 +288,18 @@ fun KeepScreenOnEffect(on: Boolean) {
 @Composable
 fun TabsRow(tabs: List<OpenTab>, current: Uri, onSelect: (Uri) -> Unit, onClose: (Uri) -> Unit) {
     val selected = tabs.indexOfFirst { it.uri == current }.coerceAtLeast(0)
-    androidx.compose.material3.ScrollableTabRow(selectedTabIndex = selected, edgePadding = 8.dp) {
+    androidx.compose.material3.ScrollableTabRow(
+        selectedTabIndex = selected,
+        edgePadding = 8.dp,
+        // Tab positions can lag one frame behind a newly opened tab; the default indicator would index past them.
+        indicator = { positions ->
+            positions.getOrNull(selected)?.let {
+                androidx.compose.material3.TabRowDefaults.SecondaryIndicator(
+                    with(androidx.compose.material3.TabRowDefaults) { Modifier.tabIndicatorOffset(it) },
+                )
+            }
+        },
+    ) {
         tabs.forEachIndexed { i, tab ->
             androidx.compose.material3.Tab(
                 selected = i == selected,

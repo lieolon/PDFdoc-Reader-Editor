@@ -1,6 +1,7 @@
 PDFdoc is a completely free PDF app. Every feature others put behind a subscription is free here. No ads, subscriptions, accounts or analytics. The app has no internet access: your documents never leave your device.
 
 <b>Viewing and reading</b>
+• Opens PDF, TXT, Word, ODT, RTF, HTML, Markdown, EPUB and FB2 books, images
 • Smooth scrolling, zoom, night mode, page layouts and tabs
 • Search, table of contents, bookmarks, clickable links
 • Select and copy text, translate, share

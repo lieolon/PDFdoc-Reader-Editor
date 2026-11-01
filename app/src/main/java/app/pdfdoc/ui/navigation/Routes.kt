@@ -41,6 +41,10 @@ data class ReaderRoute(val uri: String, val page: Int = 0)
 @Serializable
 data class PresentRoute(val uri: String, val page: Int = 0)
 
+/** Converts a text, office, e-book or image file to PDF before opening it in the viewer. */
+@Serializable
+data class ImportRoute(val uri: String)
+
 @Serializable
 data object BatchRoute
 

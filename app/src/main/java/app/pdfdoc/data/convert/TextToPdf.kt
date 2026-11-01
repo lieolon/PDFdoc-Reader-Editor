@@ -1,9 +1,9 @@
 package app.pdfdoc.data.convert
 
 import android.content.Context
-import android.text.Html
 import app.pdfdoc.data.pdf.AppearancePainter
 import app.pdfdoc.data.pdf.PdfFonts
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
 import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
@@ -26,9 +26,14 @@ class TextToPdf @Inject constructor(
         val blocks = when (format) {
             SourceFormat.TEXT -> plain(text)
             SourceFormat.MARKDOWN -> markdown(text)
-            SourceFormat.HTML -> plain(Html.fromHtml(text, Html.FROM_HTML_MODE_LEGACY).toString())
+            SourceFormat.HTML -> HtmlText.blocks(text)
         }
-        PDDocument().use { doc ->
+        write(blocks, title, target)
+    }
+
+    /** Lays out [blocks] on A4 pages; long documents are buffered in temporary files, not memory. */
+    fun write(blocks: List<TextBlock>, title: String, target: File) {
+        PDDocument(MemoryUsageSetting.setupTempFileOnly()).use { doc ->
             val font = PdfFonts.load(doc, context)
             Layout(doc, font).apply { blocks.forEach(::block) }.finish()
             doc.documentInformation.title = title
@@ -54,7 +59,7 @@ class TextToPdf @Inject constructor(
             val leading = size * 1.4f
             val indent = if (b.bullet) 16f else 0f
             if (b.heading > 0) space(size * 0.6f)
-            val lines = wrap(AppearancePainter.safeText(font, b.text), size, width - indent)
+            val lines = wrap(b.text.replace("\t", "    ").split('\n').joinToString("\n") { AppearancePainter.safeText(font, it) }, size, width - indent)
             lines.forEachIndexed { i, line ->
                 ensure(leading)
                 val stream = cs!!

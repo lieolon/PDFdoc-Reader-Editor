@@ -1,0 +1,3 @@
+• Open more than PDF: TXT, Markdown, HTML, Word (DOCX), OpenDocument (ODT), RTF, EPUB and FB2 books, images. The file becomes a PDF that works with every tool; the original stays unchanged.
+• Text files in any encoding, including legacy code pages.
+• Fixed a crash when opening a third document in tabs.
