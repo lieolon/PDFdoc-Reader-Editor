@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.ScrollableDefaults
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.RadioButton
 import app.pdfdoc.domain.model.ViewMode
 import android.Manifest
@@ -130,6 +131,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -199,6 +203,12 @@ fun ViewerScreen(
     var menu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
+    val selection by viewModel.selection.collectAsStateWithLifecycle()
+    val reading by viewModel.readAloud.state.collectAsStateWithLifecycle()
+    var pendingLink by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(reading.unavailable) {
+        if (reading.unavailable) snackbar.showSnackbar(context.getString(R.string.read_aloud_unavailable))
+    }
     val title = (state as? ViewerUiState.Ready)?.name.orEmpty()
 
     FullscreenEffect(fullscreen = !chromeVisible)
@@ -266,6 +276,11 @@ fun ViewerScreen(
                                         text = { Text(stringResource(R.string.viewer_navigation)) },
                                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
                                         onClick = { menu = false; navigation = true },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.read_aloud)) },
+                                        leadingIcon = { Icon(Icons.Default.RecordVoiceOver, null) },
+                                        onClick = { menu = false; viewModel.startReading(currentPage(listState, mode)) },
                                     )
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.viewer_tools)) },
@@ -346,10 +361,53 @@ fun ViewerScreen(
                         mode = mode,
                         nightMode = nightMode,
                         topPadding = padding.calculateTopPadding(),
-                        onTap = { chromeVisible = !chromeVisible },
+                        onTap = { page, at ->
+                            when {
+                                selection != null -> viewModel.clearSelection()
+                                page == null || at == null -> chromeVisible = !chromeVisible
+                                else -> scope.launch {
+                                    when (val link = viewModel.linkAt(page, at)) {
+                                        is app.pdfdoc.data.pdf.LinkTarget.Page -> listState.animateScrollToItem(mode.itemOf(link.index))
+                                        is app.pdfdoc.data.pdf.LinkTarget.Web -> pendingLink = link.uri
+                                        null -> chromeVisible = !chromeVisible
+                                    }
+                                }
+                            }
+                        },
+                        onSelectStart = { page, at ->
+                            scope.launch {
+                                if (!viewModel.beginSelection(page, at)) snackbar.showSnackbar(context.getString(R.string.select_no_text))
+                            }
+                        },
+                        onSelectMove = viewModel::extendSelection,
                         pageBitmap = viewModel::pageBitmap,
                         search = search,
+                        selection = selection,
+                        speaking = reading.takeIf { it.active }?.let { it.page to it.rects },
                     )
+                    selection?.let { sel ->
+                        SelectionBar(
+                            text = sel.text,
+                            onDismiss = viewModel::clearSelection,
+                            onRead = { viewModel.startReading(sel.page) },
+                            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp),
+                        )
+                    }
+                    if (reading.active) {
+                        ReadAloudBar(
+                            state = reading,
+                            onPause = viewModel.readAloud::pause,
+                            onResume = viewModel.readAloud::resume,
+                            onSkip = viewModel.readAloud::skip,
+                            onRate = viewModel.readAloud::setRate,
+                            onStop = viewModel.readAloud::stop,
+                            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp),
+                        )
+                        LaunchedEffect(reading.page) {
+                            val item = mode.itemOf(reading.page)
+                            if (listState.layoutInfo.visibleItemsInfo.none { it.index == item }) listState.animateScrollToItem(item)
+                        }
+                    }
                     AnimatedVisibility(
                         chromeVisible,
                         modifier = Modifier.align(Alignment.BottomCenter),
@@ -385,6 +443,26 @@ fun ViewerScreen(
                 }
             }
         }
+    }
+
+    pendingLink?.let { link ->
+        AlertDialog(
+            onDismissRequest = { pendingLink = null },
+            title = { Text(stringResource(R.string.link_open_title)) },
+            text = { Text(link, style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingLink = null
+                    openExternalLink(context, link)
+                }) { Text(stringResource(R.string.link_open)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    pendingLink = null
+                    copyToClipboard(context, link)
+                }) { Text(stringResource(R.string.select_copy)) }
+            },
+        )
     }
 
     if (modeDialog) {
@@ -482,11 +560,26 @@ private fun PdfPages(
     mode: ViewMode,
     nightMode: Boolean,
     topPadding: Dp,
-    onTap: () -> Unit,
+    onTap: (page: Int?, at: app.pdfdoc.domain.edit.Pt?) -> Unit,
+    onSelectStart: (page: Int, at: app.pdfdoc.domain.edit.Pt) -> Unit,
+    onSelectMove: (page: Int, at: app.pdfdoc.domain.edit.Pt) -> Unit,
     pageBitmap: suspend (Int, Int) -> Bitmap?,
     search: SearchState,
+    selection: TextSelection?,
+    speaking: Pair<Int, List<Box>>?,
 ) {
     var scale by rememberSaveable { mutableFloatStateOf(1f) }
+    // Where each visible page is drawn, in root coordinates, to map touches to page points.
+    val pageBounds = remember { mutableMapOf<Int, androidx.compose.ui.geometry.Rect>() }
+    var rootOrigin by remember { mutableStateOf(Offset.Zero) }
+    fun hit(local: Offset): Pair<Int, app.pdfdoc.domain.edit.Pt>? {
+        val p = local + rootOrigin
+        val (index, rect) = pageBounds.entries.firstOrNull { it.value.contains(p) } ?: return null
+        val size = state.pageSizes.getOrNull(index) ?: return null
+        val k = size.width / rect.width
+        return index to app.pdfdoc.domain.edit.Pt((p.x - rect.left) * k, (p.y - rect.top) * k)
+    }
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     val hScroll = rememberScrollState()
     var pendingHScroll by remember { mutableStateOf<Float?>(null) }
     val listTopPadding = topPadding + 8.dp
@@ -520,6 +613,35 @@ private fun PdfPages(
         Modifier
             .fillMaxSize()
             .background(if (nightMode) Color.Black else MaterialTheme.colorScheme.surfaceContainerHighest)
+            .onGloballyPositioned { rootOrigin = it.positionInRoot() }
+            .pointerInput(Unit) {
+                // Long press selects text; dragging afterwards extends the selection.
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    val released = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        while (true) {
+                            val e = awaitPointerEvent(PointerEventPass.Initial)
+                            val c = e.changes.firstOrNull { it.id == down.id }
+                            if (e.changes.size > 1 || c == null || !c.pressed ||
+                                (c.position - down.position).getDistance() > viewConfiguration.touchSlop
+                            ) return@withTimeoutOrNull true
+                        }
+                        @Suppress("UNREACHABLE_CODE")
+                        true
+                    }
+                    if (released != null) return@awaitEachGesture
+                    val start = hit(down.position) ?: return@awaitEachGesture
+                    haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    onSelectStart(start.first, start.second)
+                    while (true) {
+                        val e = awaitPointerEvent(PointerEventPass.Initial)
+                        val c = e.changes.firstOrNull { it.id == down.id } ?: break
+                        e.changes.forEach { it.consume() }
+                        if (!c.pressed) break
+                        hit(c.position)?.let { (page, pt) -> onSelectMove(page, pt) }
+                    }
+                }
+            }
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false)
@@ -535,7 +657,7 @@ private fun PdfPages(
             }
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onTap = { onTap() },
+                    onTap = { pos -> hit(pos).let { onTap(it?.first, it?.second) } },
                     onDoubleTap = { zoomAround(if (scale > 1.05f) 1f else DOUBLE_TAP_ZOOM, it) },
                 )
             },
@@ -562,6 +684,9 @@ private fun PdfPages(
                 pageWidthPt = size.width.toFloat(),
                 highlights = search.hits.filter { it.page == index }.flatMap { it.rects },
                 currentHit = search.currentHit?.takeIf { it.page == index }?.rects.orEmpty(),
+                selected = selection?.takeIf { it.page == index }?.rects.orEmpty(),
+                spoken = speaking?.takeIf { it.first == index }?.second.orEmpty(),
+                onBounds = { rect -> if (rect == null) pageBounds.remove(index) else pageBounds[index] = rect },
                 aspectRatio = size.width.toFloat() / size.height,
                 width = width,
                 renderWidth = renderWidth,
@@ -606,6 +731,9 @@ private fun PageImage(
     pageWidthPt: Float,
     highlights: List<Box>,
     currentHit: List<Box>,
+    selected: List<Box>,
+    spoken: List<Box>,
+    onBounds: (androidx.compose.ui.geometry.Rect?) -> Unit,
     aspectRatio: Float,
     width: Dp,
     renderWidth: Int,
@@ -618,11 +746,13 @@ private fun PageImage(
     LaunchedEffect(index, renderWidth, generation) {
         pageBitmap(index, renderWidth)?.let { bitmap = it }
     }
+    DisposableEffect(index) { onDispose { onBounds(null) } }
     Box(
         Modifier
             .width(width)
             .padding(horizontal = 8.dp)
             .aspectRatio(aspectRatio)
+            .onGloballyPositioned { onBounds(it.boundsInRoot()) }
             .background(if (nightMode) Color.Black else Color.White),
         contentAlignment = Alignment.Center,
     ) {
@@ -637,7 +767,7 @@ private fun PageImage(
         } else {
             CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
         }
-        if (highlights.isNotEmpty()) {
+        if (highlights.isNotEmpty() || selected.isNotEmpty() || spoken.isNotEmpty()) {
             Canvas(Modifier.fillMaxSize()) {
                 val k = size.width / pageWidthPt
                 fun draw(b: Box, color: Color) = drawRect(
@@ -648,6 +778,8 @@ private fun PageImage(
                 )
                 highlights.forEach { draw(it, SearchHighlight) }
                 currentHit.forEach { draw(it, SearchCurrent) }
+                spoken.forEach { draw(it, SpokenHighlight) }
+                selected.forEach { draw(it, SelectionHighlight) }
             }
         }
     }
@@ -660,13 +792,29 @@ private fun NavigationSheet(viewModel: ViewerViewModel, currentPage: Int, onDism
     val outline by produceState<List<OutlineItem>?>(null) { value = viewModel.outline() }
     val bookmarks by viewModel.bookmarks.collectAsStateWithLifecycle()
     var newBookmark by remember { mutableStateOf(false) }
+    val comments by produceState<List<app.pdfdoc.data.pdf.Comment>?>(null, viewModel.state.collectAsStateWithLifecycle().value) {
+        value = viewModel.comments()
+    }
+    var commentFilter by remember { mutableStateOf(0) }
+    var replyTo by remember { mutableStateOf<app.pdfdoc.data.pdf.Comment?>(null) }
+    var deleteComment by remember { mutableStateOf<app.pdfdoc.data.pdf.Comment?>(null) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.viewer_outline)) })
             Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text(stringResource(R.string.viewer_bookmarks)) })
+            Tab(selected = tab == 2, onClick = { tab = 2 }, text = { Text(stringResource(R.string.comments_title)) })
         }
         LazyColumn(Modifier.fillMaxWidth().heightIn(min = 200.dp, max = 480.dp).navigationBarsPadding()) {
-            if (tab == 0) {
+            if (tab == 2) {
+                commentItems(
+                    comments = comments,
+                    filter = commentFilter,
+                    onFilter = { commentFilter = it },
+                    onOpen = { onPage(it.page) },
+                    onReply = { replyTo = it },
+                    onDelete = { deleteComment = it },
+                )
+            } else if (tab == 0) {
                 val items = outline
                 when {
                     items == null -> item { CircularProgressIndicator(Modifier.padding(24.dp)) }
@@ -709,6 +857,24 @@ private fun NavigationSheet(viewModel: ViewerViewModel, currentPage: Int, onDism
                 }
             }
         }
+    }
+    replyTo?.let { c ->
+        ReplyDialog(onDismiss = { replyTo = null }, onSend = { text ->
+            replyTo = null
+            viewModel.replyToComment(c, text)
+        })
+    }
+    deleteComment?.let { c ->
+        ConfirmDialog(
+            title = stringResource(R.string.comments_delete_title),
+            text = c.text.takeIf { it.isNotEmpty() },
+            confirm = stringResource(R.string.pages_delete),
+            onDismiss = { deleteComment = null },
+            onConfirm = {
+                deleteComment = null
+                viewModel.deleteComment(c)
+            },
+        )
     }
     if (newBookmark) {
         val default = stringResource(R.string.form_page, currentPage + 1)
@@ -770,6 +936,8 @@ private fun PasswordPrompt(wrong: Boolean, onSubmit: (String) -> Unit, modifier:
 
 private val SearchHighlight = Color(0x66FFEB3B)
 private val SearchCurrent = Color(0xAAFF9800)
+private val SelectionHighlight = Color(0x664FC3F7)
+private val SpokenHighlight = Color(0x5581C784)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

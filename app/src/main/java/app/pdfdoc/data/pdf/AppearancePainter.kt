@@ -48,6 +48,36 @@ object ArrowHead {
     }
 }
 
+/** Shared geometry of measurement drawings (on screen and in the PDF). */
+object MeasureTicks {
+    const val LABEL_SIZE = 9f
+    private const val TICK = 5f
+
+    /** A short line across the measured segment at [end]. */
+    fun points(end: Pt, next: Pt): Pair<Pt, Pt> {
+        val dx = next.x - end.x
+        val dy = next.y - end.y
+        val len = kotlin.math.hypot(dx, dy).takeIf { it > 0f } ?: 1f
+        val nx = -dy / len * TICK
+        val ny = dx / len * TICK
+        return Pt(end.x + nx, end.y + ny) to Pt(end.x - nx, end.y - ny)
+    }
+
+    /** Baseline center of the value label. */
+    fun labelAnchor(e: app.pdfdoc.domain.edit.MeasureEdit): Pt = when (e.kind) {
+        app.pdfdoc.domain.edit.MeasureKind.AREA -> {
+            val c = Box.bounding(e.points)!!.center
+            Pt(c.x, c.y + LABEL_SIZE / 2)
+        }
+        else -> {
+            val mid = e.points.size / 2
+            val a = e.points[(mid - 1).coerceAtLeast(0)]
+            val b = e.points[mid.coerceAtMost(e.points.lastIndex)]
+            Pt((a.x + b.x) / 2, (a.y + b.y) / 2 - 3f)
+        }
+    }
+}
+
 /**
  * Draws an [Edit] into a content stream whose coordinates were already switched to page
  * display space (y axis pointing down). The on-screen overlay mirrors this drawing.
@@ -70,7 +100,51 @@ class AppearancePainter(
                 cs.addRect(edit.box.left, edit.box.top, edit.box.width, edit.box.height)
                 cs.fill()
             }
+            is app.pdfdoc.domain.edit.MeasureEdit -> measure(cs, edit)
+            // Links are invisible; redactions and fields are applied separately on save.
+            is app.pdfdoc.domain.edit.LinkEdit, is app.pdfdoc.domain.edit.RedactEdit, is app.pdfdoc.domain.edit.FieldEdit -> Unit
         }
+    }
+
+    private fun measure(cs: PDPageContentStream, e: app.pdfdoc.domain.edit.MeasureEdit) {
+        val pts = e.points
+        if (pts.size < 2) return
+        strokeStyle(cs, e.color, 1.2f)
+        val closed = e.kind == app.pdfdoc.domain.edit.MeasureKind.AREA
+        if (closed) {
+            cs.setGraphicsStateParameters(PDExtendedGraphicsState().apply { nonStrokingAlphaConstant = 0.15f })
+            fillColor(cs, e.color)
+            cs.moveTo(pts[0].x, pts[0].y)
+            pts.drop(1).forEach { cs.lineTo(it.x, it.y) }
+            cs.closePath()
+            cs.fillAndStroke()
+            cs.setGraphicsStateParameters(PDExtendedGraphicsState().apply { nonStrokingAlphaConstant = 1f })
+        } else {
+            cs.moveTo(pts[0].x, pts[0].y)
+            pts.drop(1).forEach { cs.lineTo(it.x, it.y) }
+            cs.stroke()
+            // End ticks.
+            listOf(pts[0] to pts[1], pts.last() to pts[pts.size - 2]).forEach { (end, next) ->
+                val (a, b) = MeasureTicks.points(end, next)
+                cs.moveTo(a.x, a.y)
+                cs.lineTo(b.x, b.y)
+            }
+            cs.stroke()
+        }
+        val f = font()
+        val label = safeText(f, e.label)
+        val at = MeasureTicks.labelAnchor(e)
+        val size = MeasureTicks.LABEL_SIZE
+        val w = f.getStringWidth(label) / 1000f * size
+        cs.setNonStrokingColor(1f, 1f, 1f)
+        cs.addRect(at.x - w / 2 - 2f, at.y - size, w + 4f, size + 3f)
+        cs.fill()
+        fillColor(cs, e.color)
+        cs.beginText()
+        cs.setFont(f, size)
+        cs.setTextMatrix(Matrix(1f, 0f, 0f, -1f, at.x - w / 2, at.y))
+        cs.showText(label)
+        cs.endText()
     }
 
     private fun ink(cs: PDPageContentStream, e: InkEdit) {

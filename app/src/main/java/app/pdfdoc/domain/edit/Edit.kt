@@ -193,6 +193,10 @@ fun resized(edit: Edit, target: Box): Edit {
         is ImageEdit -> edit.copy(box = target)
         is StampEdit -> edit.copy(box = target)
         is CoverEdit -> edit.copy(box = target)
+        is LinkEdit -> edit.copy(box = target)
+        is RedactEdit -> edit.copy(box = target)
+        is FieldEdit -> edit.copy(box = target)
+        is MeasureEdit -> edit.copy(points = edit.points.map { from.mapTo(target, it) })
         is TextEdit -> {
             // Text keeps its proportions: scale by height and anchor at the new top-left.
             val k = if (from.height > 0f) target.height / from.height else 1f
@@ -215,6 +219,10 @@ fun onPage(edit: Edit, page: Int): Edit = when (edit) {
     is ImageEdit -> edit.copy(page = page)
     is StampEdit -> edit.copy(page = page)
     is CoverEdit -> edit.copy(page = page)
+    is LinkEdit -> edit.copy(page = page)
+    is MeasureEdit -> edit.copy(page = page)
+    is RedactEdit -> edit.copy(page = page)
+    is FieldEdit -> edit.copy(page = page)
 }
 
 /** Applies a point transform to every coordinate of [edit]; boxes are re-normalized. */
@@ -232,5 +240,9 @@ fun mapPoints(edit: Edit, f: (Pt) -> Pt): Edit {
         is ImageEdit -> edit.copy(box = box(edit.box))
         is StampEdit -> edit.copy(box = box(edit.box))
         is CoverEdit -> edit.copy(box = box(edit.box))
+        is LinkEdit -> edit.copy(box = box(edit.box))
+        is MeasureEdit -> edit.copy(points = edit.points.map(f))
+        is RedactEdit -> edit.copy(box = box(edit.box))
+        is FieldEdit -> edit.copy(box = box(edit.box))
     }
 }

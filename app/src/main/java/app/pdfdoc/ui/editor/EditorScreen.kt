@@ -51,6 +51,14 @@ import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Straighten
+import androidx.compose.material.icons.filled.SquareFoot
+import androidx.compose.material.icons.filled.ImageSearch
+import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -120,12 +128,19 @@ private val Tools = listOf(
     ToolItem(Tool.STRIKEOUT, Icons.Default.FormatStrikethrough, R.string.tool_strikeout),
     ToolItem(Tool.REPLACE, Icons.Default.FindReplace, R.string.tool_replace),
     ToolItem(Tool.PEN, Icons.Default.Draw, R.string.tool_pen),
+    ToolItem(Tool.SMART_PEN, Icons.Default.AutoFixHigh, R.string.tool_smart_pen),
+    ToolItem(Tool.ERASER, Icons.Default.CleaningServices, R.string.tool_eraser),
     ToolItem(Tool.RECT, Icons.Default.CropSquare, R.string.tool_rect),
     ToolItem(Tool.OVAL, Icons.Default.RadioButtonUnchecked, R.string.tool_oval),
     ToolItem(Tool.LINE, Icons.Default.HorizontalRule, R.string.tool_line),
     ToolItem(Tool.ARROW, Icons.AutoMirrored.Filled.ArrowForward, R.string.tool_arrow),
     ToolItem(Tool.TEXT, Icons.Default.TextFields, R.string.tool_text),
     ToolItem(Tool.NOTE, Icons.Default.EditNote, R.string.tool_note),
+    ToolItem(Tool.REDACT, Icons.Default.VisibilityOff, R.string.tool_redact),
+    ToolItem(Tool.LINK, Icons.Default.Link, R.string.tool_link),
+    ToolItem(Tool.MEASURE_DISTANCE, Icons.Default.Straighten, R.string.tool_measure),
+    ToolItem(Tool.MEASURE_AREA, Icons.Default.SquareFoot, R.string.tool_measure_area),
+    ToolItem(Tool.IMAGE_EDIT, Icons.Default.ImageSearch, R.string.tool_image_edit),
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,6 +156,9 @@ fun EditorScreen(
     var prompt by remember { mutableStateOf<TextPrompt?>(null) }
     var signatures by remember { mutableStateOf(false) }
     var stampMenu by remember { mutableStateOf(false) }
+    var fieldMenu by remember { mutableStateOf(false) }
+    var scaleDialog by remember { mutableStateOf(false) }
+    var stampDialog by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     var pageText by remember { mutableStateOf<PageText?>(null) }
@@ -230,12 +248,22 @@ fun EditorScreen(
                         )
                         HorizontalDivider()
                     }
+                    ToolHint(state, onScale = { scaleDialog = true }, viewModel = viewModel)
                     StyleBar(state, viewModel)
                     HorizontalDivider()
                     LazyRow(contentPadding = PaddingValues(horizontal = 4.dp)) {
                         items(Tools) { item ->
                             ToolButton(item.icon, stringResource(item.label), state.tool == item.tool) {
                                 viewModel.selectTool(item.tool)
+                            }
+                        }
+                        item {
+                            Box {
+                                ToolButton(Icons.Default.CheckBox, stringResource(R.string.tool_field), state.tool == Tool.FIELD) { fieldMenu = true }
+                                FieldKindMenu(expanded = fieldMenu, onDismiss = { fieldMenu = false }) { kind ->
+                                    fieldMenu = false
+                                    viewModel.selectFieldKind(kind)
+                                }
                             }
                         }
                         item {
@@ -254,7 +282,9 @@ fun EditorScreen(
                                     onDismiss = { stampMenu = false },
                                     onStamp = { text, color -> stampMenu = false; viewModel.addStamp(text, color) },
                                     onDate = { stampMenu = false; viewModel.addDate() },
-                                    onCustom = { stampMenu = false; prompt = TextPrompt.CustomStamp },
+                                    onCustom = { stampMenu = false; stampDialog = true },
+                                    saved = state.customStamps,
+                                    onSaved = { text -> stampMenu = false; viewModel.addStamp(text, Palette.RED) },
                                 )
                             }
                         }
@@ -280,14 +310,25 @@ fun EditorScreen(
                         textPaint = textPaint,
                         pageText = pageText,
                         pageBitmap = viewModel::pageBitmap,
+                        generation = state.generation,
+                        vertices = if (state.tool == Tool.MEASURE_AREA) state.vertices else emptyList(),
                         gestures = object : EditorGestures {
                             override fun onStroke(points: List<Pt>) = viewModel.addStroke(state.page, points)
                             override fun onShape(kind: ShapeKind, start: Pt, end: Pt) = viewModel.addShape(state.page, kind, start, end)
                             override fun onMarkup(kind: MarkupKind, from: Pt, to: Pt) = viewModel.addMarkup(state.page, kind, from, to)
                             override fun onReplace(from: Pt, to: Pt) = viewModel.pickTextToReplace(state.page, from, to)
                             override fun onTap(at: Pt) {
-                                prompt = if (state.tool == Tool.NOTE) TextPrompt.NewNote(state.page, at) else TextPrompt.NewText(state.page, at)
+                                when (state.tool) {
+                                    Tool.MEASURE_AREA -> viewModel.addVertex(at)
+                                    Tool.IMAGE_EDIT -> viewModel.detachImageAt(state.page, at)
+                                    Tool.NOTE -> prompt = TextPrompt.NewNote(state.page, at)
+                                    else -> prompt = TextPrompt.NewText(state.page, at)
+                                }
                             }
+                            override fun onSmartStroke(points: List<Pt>) = viewModel.addSmartStroke(state.page, points)
+                            override fun onErase(path: List<Pt>) = viewModel.erase(state.page, path)
+                            override fun onArea(start: Pt, end: Pt) = viewModel.addArea(state.page, start, end)
+                            override fun onMeasureLine(start: Pt, end: Pt) = viewModel.addMeasureLine(state.page, start, end)
                             override fun onSelect(id: Long?) = viewModel.select(id)
                             override fun onPreview(edit: Edit) = viewModel.preview(edit)
                             override fun onCommitPreview() = viewModel.commitPreview()
@@ -337,6 +378,25 @@ fun EditorScreen(
             onDismiss = viewModel::cancelReplace,
             onConfirm = viewModel::confirmReplace,
             note = stringResource(R.string.editor_replace_note),
+        )
+    }
+
+    state.area?.let { area ->
+        when (area.tool) {
+            Tool.LINK -> LinkDialog(pageCount = state.pageSizes.size, onDismiss = viewModel::cancelArea, onConfirm = viewModel::confirmLink)
+            else -> FieldDialog(kind = state.fieldKind, onDismiss = viewModel::cancelArea, onConfirm = viewModel::confirmField)
+        }
+    }
+    if (scaleDialog) {
+        ScaleDialog(state.scale, onDismiss = { scaleDialog = false }) { scaleDialog = false; viewModel.setScale(it) }
+    }
+    if (stampDialog) {
+        CustomStampDialog(
+            saved = state.customStamps,
+            hasAuthor = state.author.isNotBlank(),
+            onRemove = viewModel::removeCustomStamp,
+            onDismiss = { stampDialog = false },
+            onConfirm = { text, color, name, date -> stampDialog = false; viewModel.addCustomStamp(text, color, name, date) },
         )
     }
 
@@ -399,7 +459,10 @@ private fun ToolButton(icon: ImageVector, label: String, selected: Boolean, onCl
 private fun StyleBar(state: EditorUiState, viewModel: EditorViewModel) {
     val selected = state.selected
     val tool = state.tool
-    if (selected is ImageEdit || (selected == null && tool == Tool.SELECT)) return
+    val plainTools = setOf(Tool.SELECT, Tool.ERASER, Tool.REDACT, Tool.LINK, Tool.FIELD, Tool.IMAGE_EDIT, Tool.MEASURE_DISTANCE, Tool.MEASURE_AREA)
+    if (selected is ImageEdit || selected is app.pdfdoc.domain.edit.LinkEdit || selected is app.pdfdoc.domain.edit.RedactEdit ||
+        selected is app.pdfdoc.domain.edit.FieldEdit || (selected == null && tool in plainTools)
+    ) return
     val currentColor = when (selected) {
         is InkEdit -> selected.color
         is ShapeEdit -> selected.color
@@ -431,7 +494,7 @@ private fun StyleBar(state: EditorUiState, viewModel: EditorViewModel) {
         width?.let {
             LabeledSlider(stringResource(R.string.editor_width), it, 0.5f..20f, viewModel::setWidth)
         }
-        val alpha = (selected as? InkEdit)?.alpha ?: state.style.alpha.takeIf { selected == null && tool == Tool.PEN }
+        val alpha = (selected as? InkEdit)?.alpha ?: state.style.alpha.takeIf { selected == null && (tool == Tool.PEN || tool == Tool.SMART_PEN) }
         alpha?.let {
             LabeledSlider(stringResource(R.string.editor_opacity), it, 0.1f..1f, viewModel::setAlpha)
         }
@@ -487,6 +550,8 @@ private fun StampMenu(
     onStamp: (String, Int) -> Unit,
     onDate: () -> Unit,
     onCustom: () -> Unit,
+    saved: List<String> = emptyList(),
+    onSaved: (String) -> Unit = {},
 ) {
     val approved = stringResource(R.string.stamp_approved)
     val rejected = stringResource(R.string.stamp_rejected)
@@ -498,6 +563,9 @@ private fun StampMenu(
             leadingIcon = { Icon(Icons.Default.Event, null) },
             onClick = onDate,
         )
+        saved.take(6).forEach { text ->
+            DropdownMenuItem(text = { Text(text, color = Color(Palette.RED)) }, onClick = { onSaved(text) })
+        }
         DropdownMenuItem(text = { Text(stringResource(R.string.stamp_custom)) }, onClick = onCustom)
     }
 }

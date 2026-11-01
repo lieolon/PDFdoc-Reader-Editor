@@ -14,6 +14,10 @@ import app.pdfdoc.domain.edit.ShapeEdit
 import app.pdfdoc.domain.edit.ShapeKind
 import app.pdfdoc.domain.edit.StampEdit
 import app.pdfdoc.domain.edit.TextEdit
+import app.pdfdoc.domain.edit.LinkEdit
+import app.pdfdoc.domain.edit.MeasureEdit
+import app.pdfdoc.domain.edit.MeasureKind
+import app.pdfdoc.domain.edit.appliedOnSave
 import app.pdfdoc.domain.edit.mapPoints
 import app.pdfdoc.domain.edit.onPage
 import com.tom_roush.pdfbox.cos.COSArray
@@ -55,7 +59,7 @@ class AnnotationIO @Inject constructor(
 
     /** Replaces all app-created annotations in [doc] with [edits]. Other annotations are kept. */
     fun write(doc: PDDocument, edits: List<Edit>) {
-        val byPage = edits.groupBy { it.page }
+        val byPage = edits.filterNot { it.appliedOnSave }.groupBy { it.page }
         var font: com.tom_roush.pdfbox.pdmodel.font.PDType0Font? = null
         val painter = AppearancePainter(doc) { font ?: PdfFonts.load(doc, context).also { font = it } }
         doc.pages.forEachIndexed { index, page ->
@@ -109,7 +113,7 @@ class AnnotationIO @Inject constructor(
         annotation.page = page
         colorOf(edit)?.let { annotation.color = PDColor(floatArrayOf(AppearancePainter.r(it), AppearancePainter.g(it), AppearancePainter.b(it)), PDDeviceRGB.INSTANCE) }
         dict.setString(KEY, json.encodeToString(StoredEdit.serializer(), StoredEdit(page.rotation, edit)))
-        describe(dict, edit, geometry)
+        describe(dict, edit, geometry, doc.pages.toList())
 
         val appearance = PDAppearanceStream(doc)
         appearance.bBox = rect
@@ -123,7 +127,7 @@ class AnnotationIO @Inject constructor(
     }
 
     /** Standard entries so other PDF readers understand the annotation without our appearance. */
-    private fun describe(dict: COSDictionary, edit: Edit, geometry: PageGeometry) {
+    private fun describe(dict: COSDictionary, edit: Edit, geometry: PageGeometry, pages: List<PDPage>) {
         fun floats(vararg v: Float) = COSArray().apply { v.forEach { add(COSFloat(it)) } }
         fun border(width: Float) = COSDictionary().apply { setFloat(COSName.W, width) }
         when (edit) {
@@ -177,6 +181,34 @@ class AnnotationIO @Inject constructor(
                 dict.setItem(COSName.BS, border(0f))
             }
             is ImageEdit -> Unit
+            is LinkEdit -> {
+                dict.setItem(COSName.BORDER, floats(0f, 0f, 0f))
+                val action = COSDictionary()
+                action.setName(COSName.TYPE, "Action")
+                if (edit.url != null) {
+                    action.setName(COSName.S, "URI")
+                    action.setString(COSName.URI, edit.url)
+                    dict.setItem(COSName.A, action)
+                } else if (edit.targetPage >= 0 && edit.targetPage < pages.size) {
+                    val dest = COSArray().apply {
+                        add(pages[edit.targetPage].cosObject)
+                        add(COSName.getPDFName("Fit"))
+                    }
+                    dict.setItem(COSName.DEST, dest)
+                }
+            }
+            is MeasureEdit -> {
+                dict.setString(COSName.CONTENTS, edit.label)
+                dict.setItem(COSName.BS, border(1.2f))
+                val pts = edit.points.map(geometry::toPdf)
+                if (edit.kind == MeasureKind.DISTANCE) {
+                    dict.setItem(COSName.L, floats(pts[0].x, pts[0].y, pts.last().x, pts.last().y))
+                    dict.setItem(COSName.getPDFName("Cap"), com.tom_roush.pdfbox.cos.COSBoolean.TRUE)
+                } else {
+                    dict.setItem(COSName.getPDFName("Vertices"), floats(*pts.flatMap { listOf(it.x, it.y) }.toFloatArray()))
+                }
+            }
+            is app.pdfdoc.domain.edit.RedactEdit, is app.pdfdoc.domain.edit.FieldEdit -> Unit
         }
     }
 
@@ -214,6 +246,14 @@ class AnnotationIO @Inject constructor(
             is NoteEdit -> "Text"
             is ImageEdit, is StampEdit -> "Stamp"
             is CoverEdit -> "Square"
+            is LinkEdit -> "Link"
+            is MeasureEdit -> when (edit.kind) {
+                MeasureKind.DISTANCE -> "Line"
+                MeasureKind.PERIMETER -> "PolyLine"
+                MeasureKind.AREA -> "Polygon"
+            }
+            is app.pdfdoc.domain.edit.RedactEdit -> "Redact"
+            is app.pdfdoc.domain.edit.FieldEdit -> "Widget"
         }
 
         private fun colorOf(edit: Edit): Int? = when (edit) {
@@ -224,7 +264,8 @@ class AnnotationIO @Inject constructor(
             is NoteEdit -> edit.color
             is StampEdit -> edit.color
             is CoverEdit -> edit.color
-            is ImageEdit -> null
+            is MeasureEdit -> edit.color
+            is ImageEdit, is LinkEdit, is app.pdfdoc.domain.edit.RedactEdit, is app.pdfdoc.domain.edit.FieldEdit -> null
         }
 
         /** Area the appearance may draw into: the frame plus stroke width and arrow heads. */
@@ -235,6 +276,8 @@ class AnnotationIO @Inject constructor(
                 is ShapeEdit -> edit.width / 2 + 1f +
                     if (edit.kind == ShapeKind.ARROW) ArrowHead.length(edit.width) else 0f
                 is MarkupEdit -> 1f
+                // Room for the measurement label next to the lines.
+                is MeasureEdit -> 14f
                 else -> 0.5f
             }
             return frame.inset(-pad)

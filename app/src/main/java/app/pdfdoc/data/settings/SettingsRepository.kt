@@ -28,6 +28,15 @@ class SettingsRepository @Inject constructor(
     private val compressKey = stringPreferencesKey("compress_level")
     private val folderKey = stringPreferencesKey("default_folder")
     private val viewModeKey = stringPreferencesKey("view_mode")
+    private val authorKey = stringPreferencesKey("author_name")
+    private val ocrLanguagesKey = stringPreferencesKey("ocr_languages")
+    private val stampsKey = stringPreferencesKey("custom_stamps")
+    private val appLockKey = androidx.datastore.preferences.core.booleanPreferencesKey("app_lock")
+    private val keepScreenOnKey = androidx.datastore.preferences.core.booleanPreferencesKey("keep_screen_on")
+    private val readerSizeKey = androidx.datastore.preferences.core.floatPreferencesKey("reader_font_size")
+    private val readerThemeKey = stringPreferencesKey("reader_theme")
+    private val readerSerifKey = androidx.datastore.preferences.core.booleanPreferencesKey("reader_serif")
+    private val measureKey = stringPreferencesKey("measure_scale")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         prefs[themeKey]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM
@@ -53,6 +62,41 @@ class SettingsRepository @Inject constructor(
         prefs[viewModeKey]?.let { runCatching { app.pdfdoc.domain.model.ViewMode.valueOf(it) }.getOrNull() }
             ?: app.pdfdoc.domain.model.ViewMode.CONTINUOUS
     }
+
+    /** Name written into comments, stamps and signatures. */
+    val authorName: Flow<String> = context.dataStore.data.map { it[authorKey].orEmpty() }
+    suspend fun setAuthorName(name: String) = context.dataStore.edit { it[authorKey] = name.trim() }
+
+    /** Tesseract language codes used for OCR, e.g. "rus+eng". */
+    val ocrLanguages: Flow<String> = context.dataStore.data.map { it[ocrLanguagesKey] ?: "rus+eng" }
+    suspend fun setOcrLanguages(codes: String) = context.dataStore.edit { it[ocrLanguagesKey] = codes }
+
+    /** User stamps, newest first. */
+    val customStamps: Flow<List<String>> = context.dataStore.data.map { prefs ->
+        prefs[stampsKey]?.let { raw -> runCatching { org.json.JSONArray(raw).let { a -> List(a.length()) { a.getString(it) } } }.getOrNull() }.orEmpty()
+    }
+    suspend fun setCustomStamps(stamps: List<String>) = context.dataStore.edit {
+        it[stampsKey] = org.json.JSONArray(stamps.distinct().take(MAX_STAMPS)).toString()
+    }
+
+    val appLock: Flow<Boolean> = context.dataStore.data.map { it[appLockKey] ?: false }
+    suspend fun setAppLock(enabled: Boolean) = context.dataStore.edit { it[appLockKey] = enabled }
+
+    val keepScreenOn: Flow<Boolean> = context.dataStore.data.map { it[keepScreenOnKey] ?: false }
+    suspend fun setKeepScreenOn(enabled: Boolean) = context.dataStore.edit { it[keepScreenOnKey] = enabled }
+
+    val readerFontSize: Flow<Float> = context.dataStore.data.map { it[readerSizeKey] ?: 18f }
+    val readerTheme: Flow<String> = context.dataStore.data.map { it[readerThemeKey] ?: "LIGHT" }
+    val readerSerif: Flow<Boolean> = context.dataStore.data.map { it[readerSerifKey] ?: true }
+    suspend fun setReader(size: Float, theme: String, serif: Boolean) = context.dataStore.edit {
+        it[readerSizeKey] = size
+        it[readerThemeKey] = theme
+        it[readerSerifKey] = serif
+    }
+
+    /** Last measuring scale as "value|unit": [value] units per centimeter on paper. */
+    val measureScale: Flow<String> = context.dataStore.data.map { it[measureKey] ?: "1|cm" }
+    suspend fun setMeasureScale(scale: String) = context.dataStore.edit { it[measureKey] = scale }
 
     suspend fun setViewMode(mode: app.pdfdoc.domain.model.ViewMode) = context.dataStore.edit { it[viewModeKey] = mode.name }
 
@@ -87,6 +131,10 @@ class SettingsRepository @Inject constructor(
             o.optString("compress").takeIf { v -> CompressLevel.entries.any { it.name == v } }?.let { prefs[compressKey] = it }
         }
         return o.optString("language", "")
+    }
+
+    private companion object {
+        const val MAX_STAMPS = 20
     }
 
     suspend fun setThemeMode(mode: ThemeMode) {

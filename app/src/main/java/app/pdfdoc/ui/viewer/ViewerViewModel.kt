@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -82,6 +83,9 @@ data class ViewerMessage(@androidx.annotation.StringRes val text: Int, val args:
 
 data class SearchHit(val page: Int, val rects: List<Box>)
 
+/** Text selected on one page with a long press; [range] indexes the page's glyphs. */
+data class TextSelection(val page: Int, val anchor: Int, val range: IntRange, val rects: List<Box>, val text: String)
+
 data class SearchState(
     val active: Boolean = false,
     val query: String = "",
@@ -107,6 +111,7 @@ class ViewerViewModel @Inject constructor(
     private val settings: app.pdfdoc.data.settings.SettingsRepository,
     @ApplicationContext private val context: Context,
     private val events: DocumentEvents,
+    private val comments: app.pdfdoc.data.pdf.PdfComments,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -150,6 +155,18 @@ class ViewerViewModel @Inject constructor(
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
 
+    val readAloud = ReadAloud(
+        context = context,
+        scope = viewModelScope,
+        pageCount = { (state.value as? ViewerUiState.Ready)?.pageSizes?.size ?: 0 },
+        pageText = ::pageText,
+    )
+
+    private val _selection = MutableStateFlow<TextSelection?>(null)
+    val selection: StateFlow<TextSelection?> = _selection.asStateFlow()
+
+    private val links = HashMap<Int, List<app.pdfdoc.data.pdf.PageLink>>()
+
     init {
         load()
         viewModelScope.launch {
@@ -183,6 +200,8 @@ class ViewerViewModel @Inject constructor(
                 session?.close()
                 session = newSession
                 cache.evictAll()
+                links.clear()
+                _selection.value = null
                 generation++
                 ViewerUiState.Ready(
                     name = doc.name,
@@ -373,6 +392,95 @@ class ViewerViewModel @Inject constructor(
         }
     }
 
+    // region Links, selection, comments
+
+    /** The link under [at] on [page], if any. */
+    suspend fun linkAt(page: Int, at: app.pdfdoc.domain.edit.Pt): app.pdfdoc.data.pdf.LinkTarget? {
+        val pageLinks = links[page] ?: withContext(io) {
+            textMutex.withLock {
+                val doc = textDocument() ?: return@withContext emptyList()
+                runCatching { app.pdfdoc.data.pdf.PdfLinks.read(doc, page) }.getOrDefault(emptyList())
+            }
+        }.also { links[page] = it }
+        return pageLinks.lastOrNull { it.box.contains(at, 4f) }?.target
+    }
+
+    /** Starts a selection at the word under [at]. Returns false when the page has no text there. */
+    suspend fun beginSelection(page: Int, at: app.pdfdoc.domain.edit.Pt): Boolean {
+        val text = pageText(page) ?: return false
+        if (text.isEmpty) return false
+        val i = text.indexAt(at) ?: return false
+        val word = text.wordRange(i)
+        _selection.value = TextSelection(page, i, word, text.rects(word), text.text(word))
+        return true
+    }
+
+    fun extendSelection(page: Int, at: app.pdfdoc.domain.edit.Pt) {
+        val current = _selection.value ?: return
+        if (page != current.page) return
+        val text = pageTexts.getOrNull(page) ?: return
+        val i = text.indexAt(at) ?: return
+        val range = minOf(current.anchor, i)..maxOf(current.anchor, i)
+        _selection.value = current.copy(range = range, rects = text.rects(range), text = text.text(range))
+    }
+
+    fun clearSelection() {
+        _selection.value = null
+    }
+
+    /** Reads aloud starting at the selected sentence, or at the top of [page]. */
+    fun startReading(page: Int) {
+        val sel = _selection.value
+        viewModelScope.launch {
+            val startSentence = sel?.let { s ->
+                pageText(s.page)?.sentences()?.indexOfFirst { s.range.first <= it.last }?.coerceAtLeast(0)
+            } ?: 0
+            _selection.value = null
+            readAloud.start(sel?.page ?: page, startSentence)
+        }
+    }
+
+    suspend fun comments(): List<app.pdfdoc.data.pdf.Comment> = withContext(io) {
+        val file = textMutex.withLock { workFile } ?: return@withContext emptyList()
+        runCatching { comments.read(file) }.getOrDefault(emptyList())
+    }
+
+    fun deleteComment(comment: app.pdfdoc.data.pdf.Comment) = changeDocument { source, target -> comments.delete(source, target, comment) }
+
+    fun replyToComment(comment: app.pdfdoc.data.pdf.Comment, text: String) = changeDocument { source, target ->
+        comments.reply(source, target, comment, text, settings.authorName.first().ifBlank { context.getString(R.string.comments_default_author) })
+    }
+
+    /** Applies a change to the working copy and writes it back to the document. */
+    private fun changeDocument(change: suspend (File, File) -> Unit) {
+        viewModelScope.launch {
+            val ok = runCatching {
+                withContext(io) {
+                    val source = textMutex.withLock { workFile } ?: error("no file")
+                    val out = files.newWorkFile()
+                    try {
+                        change(source, out)
+                        docs.save(out, uri, uri)
+                    } finally {
+                        out.delete()
+                    }
+                }
+            }.isSuccess
+            if (ok) events.notifyChanged(uri.toString()) else _messages.send(ViewerMessage(R.string.error_save))
+        }
+    }
+
+    /** Call with [textMutex] held. */
+    private fun textDocument(): PDDocument? {
+        val file = renderFile ?: return null
+        return textDoc ?: PDDocument.load(file, MemoryUsageSetting.setupTempFileOnly()).also {
+            textDoc = it
+            pageTexts = arrayOfNulls(it.numberOfPages)
+        }
+    }
+
+    // endregion
+
     /** Call with [textMutex] held, or when no coroutine can use the text document anymore. */
     private fun releaseFiles() {
         textDoc?.close()
@@ -383,6 +491,7 @@ class ViewerViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        readAloud.release()
         session?.close()
         cache.evictAll()
         releaseFiles()

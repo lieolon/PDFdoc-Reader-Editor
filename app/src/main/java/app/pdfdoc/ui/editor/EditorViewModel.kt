@@ -37,6 +37,7 @@ import app.pdfdoc.domain.edit.ShapeEdit
 import app.pdfdoc.domain.edit.ShapeKind
 import app.pdfdoc.domain.edit.StampEdit
 import app.pdfdoc.domain.edit.TextEdit
+import app.pdfdoc.domain.edit.appliedOnSave
 import app.pdfdoc.domain.repo.DocumentRepository
 import app.pdfdoc.domain.text.PageText
 import app.pdfdoc.ui.navigation.EditorRoute
@@ -62,9 +63,30 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-enum class Tool { SELECT, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, RECT, OVAL, LINE, ARROW, TEXT, NOTE }
+enum class Tool {
+    SELECT, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, SMART_PEN, ERASER, RECT, OVAL, LINE, ARROW, TEXT, NOTE,
+    REDACT, LINK, FIELD, MEASURE_DISTANCE, MEASURE_AREA, IMAGE_EDIT,
+}
 
-val Tool.usesWidth get() = this == Tool.PEN || this == Tool.RECT || this == Tool.OVAL || this == Tool.LINE || this == Tool.ARROW
+val Tool.usesWidth get() = this == Tool.PEN || this == Tool.SMART_PEN || this == Tool.RECT || this == Tool.OVAL || this == Tool.LINE || this == Tool.ARROW
+
+/** Tools that mark a rectangle by dragging. */
+val Tool.marksArea get() = this == Tool.REDACT || this == Tool.LINK || this == Tool.FIELD
+
+/** A measuring scale: [value] [unit] per centimeter on paper. */
+data class MeasureScale(val value: Float = 1f, val unit: String = "cm") {
+    val unitsPerPoint: Float get() = value / app.pdfdoc.domain.edit.Measure.POINTS_PER_CM
+    fun encode() = "$value|$unit"
+
+    companion object {
+        fun decode(raw: String) = raw.split('|').let { p ->
+            MeasureScale(p.getOrNull(0)?.toFloatOrNull()?.takeIf { it > 0f } ?: 1f, p.getOrNull(1)?.ifBlank { null } ?: "cm")
+        }
+    }
+}
+
+/** A rectangle drawn with the link or field tool, waiting for its settings. */
+data class AreaPrompt(val tool: Tool, val page: Int, val box: Box)
 
 object Palette {
     const val BLACK = 0xFF212121.toInt()
@@ -110,6 +132,13 @@ data class EditorUiState(
     val dirty: Boolean = false,
     val generation: Int = 0,
     val replace: ReplacePrompt? = null,
+    val area: AreaPrompt? = null,
+    val fieldKind: app.pdfdoc.domain.edit.FieldKind = app.pdfdoc.domain.edit.FieldKind.TEXT,
+    /** Corners placed so far with the area/perimeter measuring tool. */
+    val vertices: List<Pt> = emptyList(),
+    val scale: MeasureScale = MeasureScale(),
+    val customStamps: List<String> = emptyList(),
+    val author: String = "",
 ) {
     val selected: Edit? get() = edits.firstOrNull { it.id == selectedId }
     val pageEdits: List<Edit> get() = edits.filter { it.page == page }
@@ -134,6 +163,10 @@ class EditorViewModel @Inject constructor(
     private val signatures: SignatureRepository,
     private val documents: DocumentRepository,
     private val docEvents: DocumentEvents,
+    private val redactor: app.pdfdoc.data.pdf.Redactor,
+    private val formBuilder: app.pdfdoc.data.pdf.PdfFormBuilder,
+    private val pageImages: app.pdfdoc.data.pdf.PageImages,
+    private val settings: app.pdfdoc.data.settings.SettingsRepository,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -186,6 +219,36 @@ class EditorViewModel @Inject constructor(
                 _state.update { it.copy(loading = false, failed = true) }
             }
         }
+        viewModelScope.launch {
+            settings.measureScale.collect { raw -> _state.update { it.copy(scale = MeasureScale.decode(raw)) } }
+        }
+        viewModelScope.launch {
+            settings.customStamps.collect { list -> _state.update { it.copy(customStamps = list) } }
+        }
+        viewModelScope.launch {
+            settings.authorName.collect { name -> _state.update { it.copy(author = name) } }
+        }
+    }
+
+    /** Re-renders pages after the working copy changed underneath (saved redactions, detached images). */
+    private suspend fun reloadRender() {
+        val work = working ?: return
+        val (render, newSession) = withContext(io) {
+            val flat = files.newWorkFile()
+            val render = if (renderCopies.build(work, flat, excludeOwn = true)) flat else work.also { flat.delete() }
+            render to renderers.open(render)
+        }
+        textMutex.withLock {
+            textDoc?.close()
+            textDoc = null
+            pageTexts.clear()
+            renderFile?.takeIf { it != work && it != render }?.delete()
+            renderFile = render
+        }
+        session?.close()
+        session = newSession
+        bitmaps.evictAll()
+        _state.update { it.copy(pageSizes = newSession.pageSizes, generation = it.generation + 1) }
     }
 
     // region Rendering
@@ -216,7 +279,10 @@ class EditorViewModel @Inject constructor(
         it.copy(page = page.coerceIn(0, (it.pageSizes.size - 1).coerceAtLeast(0)), selectedId = null)
     }
 
-    fun selectTool(tool: Tool) = _state.update { it.copy(tool = tool, selectedId = null) }
+    fun selectTool(tool: Tool) = _state.update { it.copy(tool = tool, selectedId = null, vertices = emptyList()) }
+
+    fun selectFieldKind(kind: app.pdfdoc.domain.edit.FieldKind) =
+        _state.update { it.copy(tool = Tool.FIELD, fieldKind = kind, selectedId = null) }
 
     fun select(id: Long?) = _state.update { it.copy(selectedId = id) }
 
@@ -259,6 +325,133 @@ class EditorViewModel @Inject constructor(
     fun addStroke(page: Int, points: List<Pt>) {
         val s = state.value.style
         add(InkEdit(0, page, listOf(points), s.color(Tool.PEN), s.width, s.alpha), select = false)
+    }
+
+    /** A stroke of the smart pen: straightened into a line, rectangle or ellipse when it looks like one. */
+    fun addSmartStroke(page: Int, points: List<Pt>) {
+        val shape = app.pdfdoc.domain.edit.ShapeRecognizer.recognize(points)
+        if (shape == null) {
+            val s = state.value.style
+            add(InkEdit(0, page, listOf(points), s.color(Tool.SMART_PEN), s.width, s.alpha), select = false)
+            return
+        }
+        val s = state.value.style
+        add(ShapeEdit(0, page, shape.first, shape.second.first, shape.second.second, s.color(Tool.SMART_PEN), s.width, s.alpha), select = false)
+    }
+
+    /** Erases ink strokes and shapes touched by the eraser [path]. One undo step. */
+    fun erase(page: Int, path: List<Pt>) {
+        if (path.isEmpty()) return
+        val radius = 6f
+        var changed = false
+        val next = history.current.mapNotNull { e ->
+            if (e.page != page) return@mapNotNull e
+            when (e) {
+                is InkEdit -> {
+                    val left = app.pdfdoc.domain.edit.eraseStrokes(e.strokes, path, radius + e.width / 2)
+                    if (left.size != e.strokes.size) changed = true
+                    if (left.isEmpty()) null else e.copy(strokes = left)
+                }
+                is ShapeEdit, is app.pdfdoc.domain.edit.MeasureEdit -> {
+                    val hit = path.any { AnnotationIO.paddedFrame(e).contains(it, radius) } && touchesOutline(e, path, radius)
+                    if (hit) changed = true
+                    if (hit) null else e
+                }
+                else -> e
+            }
+        }
+        if (changed) commit(next)
+    }
+
+    private fun touchesOutline(e: Edit, path: List<Pt>, radius: Float): Boolean {
+        val outline: List<Pt> = when (e) {
+            is ShapeEdit -> when (e.kind) {
+                ShapeKind.LINE, ShapeKind.ARROW -> listOf(e.start, e.end)
+                else -> e.frame().corners().let { it + it.first() }
+            }
+            is app.pdfdoc.domain.edit.MeasureEdit -> e.points
+            else -> return true
+        }
+        return path.any { p -> outline.zipWithNext().any { (a, b) -> app.pdfdoc.domain.edit.distanceToSegment(p, a, b) <= radius } }
+    }
+
+    /** A rectangle drawn with the redaction, link or form field tool. */
+    fun addArea(page: Int, start: Pt, end: Pt) {
+        val box = Box.of(start, end)
+        if (box.width < 4f || box.height < 4f) return
+        when (state.value.tool) {
+            Tool.REDACT -> add(app.pdfdoc.domain.edit.RedactEdit(0, page, box), select = false)
+            Tool.LINK, Tool.FIELD -> _state.update { it.copy(area = AreaPrompt(it.tool, page, box)) }
+            else -> Unit
+        }
+    }
+
+    fun cancelArea() = _state.update { it.copy(area = null) }
+
+    fun confirmLink(url: String?, targetPage: Int) {
+        val area = state.value.area ?: return
+        _state.update { it.copy(area = null) }
+        add(app.pdfdoc.domain.edit.LinkEdit(0, area.page, area.box, url?.trim()?.ifEmpty { null }, targetPage), select = false)
+    }
+
+    fun confirmField(name: String, options: List<String>, group: String) {
+        val area = state.value.area ?: return
+        _state.update { it.copy(area = null) }
+        add(app.pdfdoc.domain.edit.FieldEdit(0, area.page, area.box, state.value.fieldKind, name, options, group), select = false)
+    }
+
+    fun addMeasureLine(page: Int, start: Pt, end: Pt) {
+        if (app.pdfdoc.domain.edit.distance(start, end) < 3f) return
+        val scale = state.value.scale
+        add(app.pdfdoc.domain.edit.MeasureEdit(0, page, app.pdfdoc.domain.edit.MeasureKind.DISTANCE, listOf(start, end), Palette.BLUE, scale.unitsPerPoint, scale.unit), select = false)
+    }
+
+    fun addVertex(at: Pt) = _state.update { it.copy(vertices = it.vertices + at) }
+
+    fun cancelVertices() = _state.update { it.copy(vertices = emptyList()) }
+
+    fun finishMeasure(kind: app.pdfdoc.domain.edit.MeasureKind) {
+        val points = state.value.vertices
+        val needed = if (kind == app.pdfdoc.domain.edit.MeasureKind.AREA) 3 else 2
+        if (points.size < needed) return
+        val scale = state.value.scale
+        _state.update { it.copy(vertices = emptyList()) }
+        add(app.pdfdoc.domain.edit.MeasureEdit(0, state.value.page, kind, points, Palette.BLUE, scale.unitsPerPoint, scale.unit), select = false)
+    }
+
+    fun setScale(scale: MeasureScale) {
+        viewModelScope.launch { settings.setMeasureScale(scale.encode()) }
+    }
+
+    /** Turns the picture under [at] into an image object that can be moved, resized or deleted. */
+    fun detachImageAt(page: Int, at: Pt) {
+        val source = working ?: return
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            val result = runCatching {
+                withContext(io) {
+                    val placement = pageImages.find(source, page).lastOrNull { it.removable && it.box.contains(at) }
+                        ?: return@withContext null
+                    val out = files.newWorkFile()
+                    val bitmap = pageImages.detach(source, out, page, placement) ?: run { out.delete(); return@withContext null }
+                    val file = Images.save(bitmap, imageDir, UUID.randomUUID().toString())
+                    out.copyTo(source, overwrite = true)
+                    out.delete()
+                    placement to file
+                }
+            }.getOrNull()
+            if (result == null) {
+                _state.update { it.copy(busy = false) }
+                _events.send(EditorEvent.Message(R.string.editor_no_image_here))
+                return@launch
+            }
+            reloadRender()
+            val (placement, file) = result
+            _state.update { it.copy(busy = false) }
+            add(ImageEdit(0, page, placement.box, placement.rotation, imagePath = file.absolutePath))
+            // The page content changed: saving is needed even if the image is left as it is.
+            _state.update { it.copy(dirty = true) }
+        }
     }
 
     fun addShape(page: Int, kind: ShapeKind, start: Pt, end: Pt) {
@@ -353,6 +546,22 @@ class EditorViewModel @Inject constructor(
     fun addStamp(text: String, color: Int) {
         if (text.isBlank()) return
         add(stampFor(state.value.page, text, color))
+    }
+
+    /** A user stamp, optionally with the author's name and today's date; it is remembered for next time. */
+    fun addCustomStamp(text: String, color: Int, withName: Boolean, withDate: Boolean) {
+        if (text.isBlank()) return
+        val parts = listOfNotNull(
+            text.trim().uppercase(),
+            state.value.author.takeIf { withName && it.isNotBlank() },
+            SimpleDateFormat("dd.MM.yyyy", Locale.getDefault()).format(Date()).takeIf { withDate },
+        )
+        add(stampFor(state.value.page, parts.joinToString(" · "), color))
+        viewModelScope.launch { settings.setCustomStamps(listOf(text.trim().uppercase()) + state.value.customStamps) }
+    }
+
+    fun removeCustomStamp(text: String) {
+        viewModelScope.launch { settings.setCustomStamps(state.value.customStamps - text) }
     }
 
     fun addDate() {
@@ -505,10 +714,20 @@ class EditorViewModel @Inject constructor(
             val result = runCatching {
                 withContext(io) {
                     val out = files.newWorkFile()
-                    PDDocument.load(source, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
-                        annotations.write(doc, edits)
+                    val redactions = edits.filterIsInstance<app.pdfdoc.domain.edit.RedactEdit>()
+                    var input = source
+                    var redacted: File? = null
+                    if (redactions.isNotEmpty()) {
+                        redacted = files.newWorkFile()
+                        redactor.redact(source, redacted, redactions.groupBy({ it.page }, { it.box }))
+                        input = redacted
+                    }
+                    PDDocument.load(input, MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                        annotations.write(doc, keptAfter(edits))
+                        formBuilder.add(doc, edits.filterIsInstance<app.pdfdoc.domain.edit.FieldEdit>())
                         doc.save(out)
                     }
+                    redacted?.delete()
                     docs.save(out, target, uri)
                     if (target == uri) {
                         source.delete()
@@ -520,8 +739,24 @@ class EditorViewModel @Inject constructor(
                     }
                 }
             }
+            if (result.isSuccess && edits.any { it.appliedOnSave }) {
+                // Redactions and new fields are now part of the page; keep editing the rest.
+                history.reset(keptAfter(edits))
+                transient = null
+                publish()
+                reloadRender()
+            }
             _state.update { it.copy(busy = false, dirty = if (result.isSuccess) false else it.dirty) }
             if (result.isSuccess) after() else _events.send(EditorEvent.Message(R.string.error_save))
+        }
+    }
+
+    /** Edits that stay annotations after saving: not one-shot, and not inside a redacted region. */
+    private fun keptAfter(edits: List<Edit>): List<Edit> {
+        val redactions = edits.filterIsInstance<app.pdfdoc.domain.edit.RedactEdit>()
+        return edits.filterNot { it.appliedOnSave }.filterNot { e ->
+            val f = e.frame()
+            redactions.any { r -> r.page == e.page && r.box.left < f.right && f.left < r.box.right && r.box.top < f.bottom && f.top < r.box.bottom }
         }
     }
 

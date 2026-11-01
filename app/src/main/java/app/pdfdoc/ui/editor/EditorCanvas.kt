@@ -61,12 +61,16 @@ interface EditorGestures {
     fun onMarkup(kind: MarkupKind, from: Pt, to: Pt)
     fun onReplace(from: Pt, to: Pt)
     fun onTap(at: Pt)
+    fun onSmartStroke(points: List<Pt>)
+    fun onErase(path: List<Pt>)
+    fun onArea(start: Pt, end: Pt)
+    fun onMeasureLine(start: Pt, end: Pt)
     fun onSelect(id: Long?)
     fun onPreview(edit: Edit)
     fun onCommitPreview()
 }
 
-private enum class Mode { NONE, PEN, SHAPE, MARKUP, TAP, MOVE, RESIZE, PAN, TRANSFORM }
+private enum class Mode { NONE, PEN, ERASE, SHAPE, AREA, MARKUP, TAP, MOVE, RESIZE, PAN, TRANSFORM }
 
 @Composable
 fun EditorCanvas(
@@ -82,6 +86,8 @@ fun EditorCanvas(
     pageBitmap: suspend (Int, Int) -> Bitmap?,
     gestures: EditorGestures,
     modifier: Modifier = Modifier,
+    generation: Int = 0,
+    vertices: List<Pt> = emptyList(),
 ) {
     val renderer = remember(textPaint) { EditRenderer(textPaint) }
     // Zoom and pan reset when the page changes.
@@ -131,13 +137,19 @@ fun EditorCanvas(
                 var last = down.position
 
                 when (val t = currentTool) {
-                    Tool.PEN -> { mode = Mode.PEN; stroke = listOf(start) }
-                    Tool.RECT, Tool.OVAL, Tool.LINE, Tool.ARROW, Tool.HIGHLIGHT, Tool.UNDERLINE, Tool.STRIKEOUT, Tool.REPLACE -> {
-                        mode = if (t.usesWidth) Mode.SHAPE else Mode.MARKUP
+                    Tool.PEN, Tool.SMART_PEN -> { mode = Mode.PEN; stroke = listOf(start) }
+                    Tool.ERASER -> { mode = Mode.ERASE; stroke = listOf(start) }
+                    Tool.RECT, Tool.OVAL, Tool.LINE, Tool.ARROW, Tool.HIGHLIGHT, Tool.UNDERLINE, Tool.STRIKEOUT, Tool.REPLACE, Tool.MEASURE_DISTANCE -> {
+                        mode = if (t.usesWidth || t == Tool.MEASURE_DISTANCE) Mode.SHAPE else Mode.MARKUP
                         dragStart = start
                         dragEnd = start
                     }
-                    Tool.TEXT, Tool.NOTE -> mode = Mode.TAP
+                    Tool.REDACT, Tool.LINK, Tool.FIELD -> {
+                        mode = Mode.AREA
+                        dragStart = start
+                        dragEnd = start
+                    }
+                    Tool.TEXT, Tool.NOTE, Tool.MEASURE_AREA, Tool.IMAGE_EDIT -> mode = Mode.TAP
                     Tool.SELECT -> {
                         val sel = currentSelected
                         handle = if (sel != null && sel.resizable) {
@@ -178,8 +190,8 @@ fun EditorCanvas(
                     if (!moved && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
                     val p = toPage(change.position)
                     when (mode) {
-                        Mode.PEN -> stroke = stroke + p
-                        Mode.SHAPE, Mode.MARKUP -> dragEnd = p
+                        Mode.PEN, Mode.ERASE -> stroke = stroke + p
+                        Mode.SHAPE, Mode.MARKUP, Mode.AREA -> dragEnd = p
                         Mode.MOVE -> if (moved) origEdit?.let { currentGestures.onPreview(it.translate(p.x - start.x, p.y - start.y)) }
                         Mode.RESIZE -> origEdit?.let { e ->
                             val corners = e.frame().corners()
@@ -196,8 +208,15 @@ fun EditorCanvas(
 
                 val end = toPage(last)
                 when (mode) {
-                    Mode.PEN -> if (stroke.isNotEmpty()) currentGestures.onStroke(stroke)
-                    Mode.SHAPE -> if (moved) currentGestures.onShape(shapeKind(currentTool), start, end)
+                    Mode.PEN -> if (stroke.isNotEmpty()) {
+                        if (currentTool == Tool.SMART_PEN) currentGestures.onSmartStroke(stroke) else currentGestures.onStroke(stroke)
+                    }
+                    Mode.ERASE -> currentGestures.onErase(stroke)
+                    Mode.AREA -> if (moved) currentGestures.onArea(start, end)
+                    Mode.SHAPE -> if (moved) {
+                        if (currentTool == Tool.MEASURE_DISTANCE) currentGestures.onMeasureLine(start, end)
+                        else currentGestures.onShape(shapeKind(currentTool), start, end)
+                    }
                     Mode.MARKUP -> if (moved) {
                         if (currentTool == Tool.REPLACE) currentGestures.onReplace(start, end)
                         else currentGestures.onMarkup(markupKind(currentTool), start, end)
@@ -227,7 +246,7 @@ fun EditorCanvas(
             val pageWidthPx = (pw * ppp)
             val renderWidth = (pageWidthPx * 2).roundToInt().coerceIn(1, MAX_RENDER_PX)
             var bitmap by remember(page) { mutableStateOf<Bitmap?>(null) }
-            LaunchedEffect(page, renderWidth) { pageBitmap(page, renderWidth)?.let { bitmap = it } }
+            LaunchedEffect(page, renderWidth, generation) { pageBitmap(page, renderWidth)?.let { bitmap = it } }
             val sizeDp = with(LocalDensity.current) { androidx.compose.ui.unit.DpSize((pw * ppp).toDp(), (ph * ppp).toDp()) }
 
             Box(
@@ -245,7 +264,17 @@ fun EditorCanvas(
                     }
                     // Previews of the gesture in progress.
                     val color = Color(previewColor)
-                    if (stroke.size > 1) {
+                    if (vertices.isNotEmpty()) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(vertices[0].x * k, vertices[0].y * k)
+                            vertices.drop(1).forEach { lineTo(it.x * k, it.y * k) }
+                        }
+                        drawPath(path, Color(0xFF1565C0), style = Stroke(1.5f * k))
+                        vertices.forEach { drawCircle(Color(0xFF1565C0), 3f * k, it.offset(k)) }
+                    }
+                    if (tool == Tool.ERASER && stroke.isNotEmpty()) {
+                        stroke.forEach { drawCircle(Color(0x55E53935), 6f * k, it.offset(k)) }
+                    } else if (stroke.size > 1) {
                         val path = androidx.compose.ui.graphics.Path().apply {
                             moveTo(stroke[0].x * k, stroke[0].y * k)
                             stroke.drop(1).forEach { lineTo(it.x * k, it.y * k) }
@@ -262,6 +291,9 @@ fun EditorCanvas(
                             Tool.RECT -> drawRect(color, Box.of(a, b).topLeft(k), Box.of(a, b).size(k), style = Stroke(previewWidth * k))
                             Tool.OVAL -> drawOval(color, Box.of(a, b).topLeft(k), Box.of(a, b).size(k), style = Stroke(previewWidth * k))
                             Tool.LINE, Tool.ARROW -> drawLine(color, a.offset(k), b.offset(k), previewWidth * k)
+                            Tool.MEASURE_DISTANCE -> drawLine(Color(0xFF1565C0), a.offset(k), b.offset(k), 1.5f * k)
+                            Tool.REDACT -> drawRect(Color.Black.copy(alpha = 0.7f), Box.of(a, b).topLeft(k), Box.of(a, b).size(k))
+                            Tool.LINK, Tool.FIELD -> drawRect(Color(0xFF1565C0), Box.of(a, b).topLeft(k), Box.of(a, b).size(k), style = Stroke(1.5f * k))
                             else -> markupRects.forEach {
                                 drawRect(color.copy(alpha = 0.4f), it.topLeft(k), it.size(k))
                             }

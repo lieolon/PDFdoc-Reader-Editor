@@ -23,10 +23,17 @@ class TextLayerWriter @Inject constructor(
      * as displayed (rotation applied).
      */
     fun write(doc: PDDocument, page: PDPage, words: List<OcrWord>, imageWidth: Int, imageHeight: Int, font: PDType0Font) {
+        val geometry = PageGeometry.of(page)
+        write(doc, page, words, geometry.displayWidth / imageWidth, geometry.displayHeight / imageHeight, font)
+    }
+
+    /** [words] already in page display points. */
+    fun writeInPoints(doc: PDDocument, page: PDPage, words: List<OcrWord>, font: PDType0Font) =
+        write(doc, page, words, 1f, 1f, font)
+
+    private fun write(doc: PDDocument, page: PDPage, words: List<OcrWord>, sx: Float, sy: Float, font: PDType0Font) {
         if (words.isEmpty()) return
         val geometry = PageGeometry.of(page)
-        val sx = geometry.displayWidth / imageWidth
-        val sy = geometry.displayHeight / imageHeight
         PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true, true).use { cs ->
             cs.transform(geometry.matrix())
             cs.beginText()

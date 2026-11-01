@@ -36,6 +36,13 @@ import app.pdfdoc.domain.edit.StampEdit
 import app.pdfdoc.domain.edit.TextAlign
 import app.pdfdoc.domain.edit.TextEdit
 import app.pdfdoc.domain.edit.TextLayout
+import app.pdfdoc.domain.edit.LinkEdit
+import app.pdfdoc.domain.edit.RedactEdit
+import app.pdfdoc.domain.edit.FieldEdit
+import app.pdfdoc.domain.edit.MeasureEdit
+import app.pdfdoc.domain.edit.MeasureKind
+import app.pdfdoc.data.pdf.MeasureTicks
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.max
 import kotlin.math.roundToInt
 
@@ -55,7 +62,52 @@ class EditRenderer(private val textPaint: Paint) {
             is ImageEdit -> image(edit.imagePath)?.let { image(edit, it, k) }
             is StampEdit -> stamp(edit, k)
             is CoverEdit -> drawRect(Color(edit.color), edit.box.topLeft(k), edit.box.size(k))
+            is LinkEdit -> {
+                drawRect(LinkColor.copy(alpha = 0.12f), edit.box.topLeft(k), edit.box.size(k))
+                drawRect(LinkColor, edit.box.topLeft(k), edit.box.size(k), style = Stroke(1.5f * density, pathEffect = Dashed))
+                label(edit.url ?: "→ ${edit.targetPage + 1}", edit.box.left, edit.box.top - 3f, k, LinkColor.toArgb())
+            }
+            is RedactEdit -> {
+                drawRect(Color.Black, edit.box.topLeft(k), edit.box.size(k))
+                drawRect(Color(0xFFE53935), edit.box.topLeft(k), edit.box.size(k), style = Stroke(2f * density))
+            }
+            is FieldEdit -> {
+                drawRect(FieldColor.copy(alpha = 0.12f), edit.box.topLeft(k), edit.box.size(k))
+                drawRect(FieldColor, edit.box.topLeft(k), edit.box.size(k), style = Stroke(1.5f * density, pathEffect = Dashed))
+                label(edit.name, edit.box.left + 2f, edit.box.top + minOf(edit.box.height - 2f, 10f), k, FieldColor.toArgb())
+            }
+            is MeasureEdit -> measure(edit, k)
         }
+    }
+
+    private fun DrawScope.label(text: String, x: Float, baseline: Float, k: Float, color: Int, size: Float = 9f) {
+        textPaint.color = color
+        textPaint.textSize = size * k
+        drawContext.canvas.nativeCanvas.drawText(text, x * k, baseline * k, textPaint)
+    }
+
+    private fun DrawScope.measure(e: MeasureEdit, k: Float) {
+        val color = Color(e.color)
+        val pts = e.points
+        if (pts.size < 2) return
+        val path = Path().apply {
+            moveTo(pts[0].x * k, pts[0].y * k)
+            pts.drop(1).forEach { lineTo(it.x * k, it.y * k) }
+            if (e.kind == MeasureKind.AREA) close()
+        }
+        if (e.kind == MeasureKind.AREA) drawPath(path, color.copy(alpha = 0.15f))
+        drawPath(path, color, style = Stroke(1.2f * k, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        if (e.kind != MeasureKind.AREA) {
+            listOf(pts[0] to pts[1], pts.last() to pts[pts.size - 2]).forEach { (end, next) ->
+                val (a, b) = MeasureTicks.points(end, next)
+                drawLine(color, a.offset(k), b.offset(k), 1.2f * k)
+            }
+        }
+        val at = MeasureTicks.labelAnchor(e)
+        textPaint.textSize = MeasureTicks.LABEL_SIZE * k
+        val w = textPaint.measureText(e.label) / k
+        drawRect(Color.White, Offset((at.x - w / 2 - 2f) * k, (at.y - MeasureTicks.LABEL_SIZE) * k), Size((w + 4f) * k, (MeasureTicks.LABEL_SIZE + 3f) * k))
+        label(e.label, at.x - w / 2, at.y, k, e.color, MeasureTicks.LABEL_SIZE)
     }
 
     fun DrawScope.selection(edit: Edit, k: Float, zoom: Float) {
@@ -182,6 +234,9 @@ class EditRenderer(private val textPaint: Paint) {
     }
 
     companion object {
+        val LinkColor = Color(0xFF1565C0)
+        val FieldColor = Color(0xFF6A1B9A)
+        private val Dashed = PathEffect.dashPathEffect(floatArrayOf(10f, 6f))
         const val HANDLE_DP = 6f
         val SelectionColor = Color(0xFF1E88E5)
     }

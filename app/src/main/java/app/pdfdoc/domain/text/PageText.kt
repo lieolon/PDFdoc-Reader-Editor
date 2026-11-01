@@ -47,6 +47,64 @@ class PageText(val glyphs: List<Glyph>) {
         return glyphs.subList(minOf(a, b), maxOf(a, b) + 1).joinToString("") { it.ch.toString() }.trim()
     }
 
+    /** The text as it is laid out, index-aligned with [glyphs]. */
+    val text: String = buildString(glyphs.size) { glyphs.forEach { append(it.ch) } }
+
+    /** Index of the glyph nearest to [p], or null for a page without text. */
+    fun indexAt(p: Pt): Int? = nearestGlyph(p)
+
+    /** The word (letters and digits) around glyph [i]; a single glyph for punctuation. */
+    fun wordRange(i: Int): IntRange {
+        if (!isWordChar(i)) return i..i
+        var start = i
+        var end = i
+        while (start > 0 && isWordChar(start - 1)) start--
+        while (end < glyphs.lastIndex && isWordChar(end + 1)) end++
+        return start..end
+    }
+
+    private fun isWordChar(i: Int) = glyphs[i].box != null && glyphs[i].ch.isLetterOrDigit()
+
+    fun rects(range: IntRange): List<Box> =
+        if (range.isEmpty() || glyphs.isEmpty()) emptyList()
+        else lineRects(range.first.coerceAtLeast(0), range.last.coerceAtMost(glyphs.lastIndex))
+
+    fun text(range: IntRange): String =
+        if (range.isEmpty()) "" else text.substring(range.first.coerceAtLeast(0), (range.last + 1).coerceAtMost(text.length)).trim()
+
+    /** Every match of [regex] in the page text, as per-line rectangles. */
+    fun findRegex(regex: Regex): List<List<Box>> =
+        regex.findAll(text).mapNotNull { m -> rects(m.range).takeIf { it.isNotEmpty() } }.toList()
+
+    /**
+     * Sentences for reading aloud: split at sentence ends and paragraph breaks, long runs cut at
+     * word boundaries so the speech engine gets manageable chunks.
+     */
+    fun sentences(maxLength: Int = 280): List<IntRange> {
+        val result = mutableListOf<IntRange>()
+        var start = -1
+        fun close(end: Int) {
+            if (start >= 0 && text.substring(start, end + 1).any(Char::isLetterOrDigit)) result += start..end
+            start = -1
+        }
+        for (i in text.indices) {
+            val c = text[i]
+            if (start < 0) {
+                if (!c.isWhitespace()) start = i else continue
+            }
+            val next = text.getOrNull(i + 1)
+            val sentenceEnd = (c == '.' || c == '!' || c == '?' || c == '…') && (next == null || next.isWhitespace())
+            val paragraphEnd = c == '\n' && next == '\n'
+            when {
+                sentenceEnd -> close(i)
+                paragraphEnd -> close(i - 1)
+                i - start >= maxLength && c == ' ' -> close(i - 1)
+            }
+        }
+        if (start >= 0) close(text.lastIndex)
+        return result
+    }
+
     private fun nearestGlyph(p: Pt): Int? {
         var best: Int? = null
         var bestDist = Float.MAX_VALUE
