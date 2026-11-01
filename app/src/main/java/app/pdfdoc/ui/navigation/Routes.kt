@@ -29,3 +29,21 @@ data class ScanRoute(val fromImages: Boolean = false)
 
 @Serializable
 data class ToolsRoute(val uri: String)
+
+@Serializable
+data class CompareRoute(val old: String, val new: String)
+
+/** Reflowed text of a document, for comfortable reading on a phone. */
+@Serializable
+data class ReaderRoute(val uri: String, val page: Int = 0)
+
+/** Full-screen slide show of a document. */
+@Serializable
+data class PresentRoute(val uri: String, val page: Int = 0)
+
+@Serializable
+data object BatchRoute
+
+/** Creates a PDF from a text, Markdown or HTML file. */
+@Serializable
+data object TextToPdfRoute

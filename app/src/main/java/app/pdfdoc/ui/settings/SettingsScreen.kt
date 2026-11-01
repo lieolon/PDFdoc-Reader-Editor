@@ -58,6 +58,16 @@ import app.pdfdoc.domain.tools.CompressLevel
 import app.pdfdoc.ui.common.rememberCreateDocument
 import app.pdfdoc.ui.signature.SignatureSheet
 import kotlin.math.roundToInt
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Checkbox
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableStateListOf
 
 private data class Choice<T>(val value: T, val label: Int)
 
@@ -124,6 +134,19 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
                 leadingContent = { Icon(Icons.Default.HighQuality, null) },
             )
 
+            Section(R.string.settings_section_work)
+            val author by viewModel.authorName.collectAsStateWithLifecycle()
+            val ocrLanguages by viewModel.ocrLanguages.collectAsStateWithLifecycle()
+            val keepOn by viewModel.keepScreenOn.collectAsStateWithLifecycle()
+            val locked by viewModel.appLock.collectAsStateWithLifecycle()
+            Item(Icons.Default.Person, R.string.settings_author, author.ifBlank { stringResource(R.string.settings_author_none) }) { dialog = "author" }
+            Item(Icons.Default.Translate, R.string.settings_ocr_languages, ocrLanguages.split('+').joinToString(", ") { app.pdfdoc.data.ocr.OcrLanguages.label(context, it) }) { dialog = "ocr" }
+            SwitchItem(Icons.Default.LightMode, R.string.settings_keep_screen_on, keepOn, viewModel::setKeepScreenOn)
+            SwitchItem(Icons.Default.Fingerprint, R.string.settings_app_lock, locked) { on ->
+                if (!on || app.pdfdoc.ui.lock.AppLock.available(context)) viewModel.setAppLock(on)
+                else dialog = "lock"
+            }
+
             Section(R.string.settings_section_data)
             Item(Icons.Default.Gesture, R.string.settings_signatures, stringResource(R.string.settings_signatures_desc)) { signatures = true }
             Item(Icons.Default.CleaningServices, R.string.settings_clear_cache, null, viewModel::clearCache)
@@ -162,6 +185,52 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
             listOf(Choice(96, R.string.dpi_96), Choice(150, R.string.dpi_150), Choice(300, R.string.dpi_300)),
             dpi, onDismiss = { dialog = null },
         ) { viewModel.setExportDpi(it) }
+        "author" -> {
+            var name by remember { mutableStateOf(viewModel.authorName.value) }
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text(stringResource(R.string.settings_author)) },
+                text = {
+                    Column {
+                        Text(stringResource(R.string.settings_author_hint), style = MaterialTheme.typography.bodySmall)
+                        OutlinedTextField(name, { name = it }, singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 8.dp))
+                    }
+                },
+                confirmButton = { TextButton(onClick = { dialog = null; viewModel.setAuthorName(name) }) { Text(stringResource(R.string.ok)) } },
+                dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } },
+            )
+        }
+        "ocr" -> {
+            val chosen = remember { mutableStateListOf(*viewModel.ocrLanguages.value.split('+').toTypedArray()) }
+            AlertDialog(
+                onDismissRequest = { dialog = null },
+                title = { Text(stringResource(R.string.settings_ocr_languages)) },
+                text = {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        Text(stringResource(R.string.settings_ocr_hint), style = MaterialTheme.typography.bodySmall)
+                        app.pdfdoc.data.ocr.OcrLanguages.ALL.forEach { code ->
+                            Row(Modifier.fillMaxWidth().clickable { if (code in chosen) chosen -= code else chosen += code }, verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(checked = code in chosen, onCheckedChange = { if (it) chosen += code else chosen -= code })
+                                Text(app.pdfdoc.data.ocr.OcrLanguages.label(context, code))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(enabled = chosen.isNotEmpty(), onClick = {
+                        dialog = null
+                        viewModel.setOcrLanguages(app.pdfdoc.data.ocr.OcrLanguages.ALL.filter { it in chosen })
+                    }) { Text(stringResource(R.string.ok)) }
+                },
+                dismissButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.cancel)) } },
+            )
+        }
+        "lock" -> AlertDialog(
+            onDismissRequest = { dialog = null },
+            title = { Text(stringResource(R.string.settings_app_lock)) },
+            text = { Text(stringResource(R.string.lock_unavailable)) },
+            confirmButton = { TextButton(onClick = { dialog = null }) { Text(stringResource(R.string.ok)) } },
+        )
         "licenses" -> AlertDialog(
             onDismissRequest = { dialog = null },
             title = { Text(stringResource(R.string.settings_licenses)) },
@@ -174,6 +243,16 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
         // Picking does nothing here; the sheet is used to review and delete saved signatures.
         SignatureSheet(onPick = {}, onDismiss = { signatures = false }, onError = {})
     }
+}
+
+@Composable
+private fun SwitchItem(icon: ImageVector, title: Int, checked: Boolean, onChange: (Boolean) -> Unit) {
+    ListItem(
+        headlineContent = { Text(stringResource(title)) },
+        leadingContent = { Icon(icon, null) },
+        trailingContent = { androidx.compose.material3.Switch(checked = checked, onCheckedChange = onChange) },
+        modifier = Modifier.clickable { onChange(!checked) },
+    )
 }
 
 @Composable

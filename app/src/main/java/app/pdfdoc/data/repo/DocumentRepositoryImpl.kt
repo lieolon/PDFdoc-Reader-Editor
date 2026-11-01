@@ -86,4 +86,5 @@ private fun DocumentEntity.toDomain() = PdfDocument(
     lastOpenedAt = lastOpenedAt,
     lastPage = lastPage,
     thumbnailPath = thumbnailPath,
+    isFavorite = isFavorite,
 )

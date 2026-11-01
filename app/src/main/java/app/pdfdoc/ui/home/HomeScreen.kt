@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.DynamicFeed
+import androidx.compose.material.icons.filled.PostAdd
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -77,6 +80,8 @@ fun HomeScreen(
     onScan: () -> Unit,
     onImagesToPdf: () -> Unit,
     onSettings: () -> Unit,
+    onBatch: () -> Unit,
+    onTextToPdf: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -84,6 +89,8 @@ fun HomeScreen(
         uri?.let(onOpenDocument)
     }
     var sortMenu by remember { mutableStateOf(false) }
+    var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
+    var membershipFor by remember { mutableStateOf<PdfDocument?>(null) }
 
     Scaffold(
         topBar = {
@@ -130,6 +137,15 @@ fun HomeScreen(
                     QuickAction(Icons.Default.MergeType, stringResource(R.string.home_merge), Modifier.weight(1f), onMerge)
                 }
             }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    QuickAction(Icons.Default.DynamicFeed, stringResource(R.string.batch_title), Modifier.weight(1f), onBatch)
+                    QuickAction(Icons.Default.PostAdd, stringResource(R.string.text_to_pdf), Modifier.weight(1f), onTextToPdf)
+                }
+            }
             if (state.hasAnyDocuments) {
                 item {
                     OutlinedTextField(
@@ -149,6 +165,14 @@ fun HomeScreen(
                     )
                 }
                 item {
+                    FilterRow(
+                        state = state,
+                        onFilter = viewModel::setFilter,
+                        onNewFolder = { folderDialog = FolderDialog.Create(null) },
+                        onManage = { id -> state.folders.firstOrNull { it.id == id }?.let { folderDialog = FolderDialog.Manage(it) } },
+                    )
+                }
+                item {
                     Text(
                         stringResource(R.string.home_recent),
                         style = MaterialTheme.typography.titleSmall,
@@ -165,7 +189,7 @@ fun HomeScreen(
                         Modifier.padding(top = 48.dp),
                     )
                 }
-                state.documents.isEmpty() -> item {
+                state.documents.isEmpty() && state.textHits.isEmpty() -> item {
                     MessageView(stringResource(R.string.home_nothing_found), modifier = Modifier.padding(top = 48.dp))
                 }
                 else -> items(state.documents, key = { it.id }) { doc ->
@@ -173,10 +197,49 @@ fun HomeScreen(
                         doc = doc,
                         onClick = { onOpenDocument(Uri.parse(doc.uri)) },
                         onRemove = { viewModel.remove(doc.id) },
+                        onFavorite = { viewModel.toggleFavorite(doc) },
+                        onFolders = { membershipFor = doc },
+                    )
+                }
+            }
+            if (state.textHits.isNotEmpty()) {
+                item {
+                    Text(
+                        stringResource(R.string.home_found_in_text),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                items(state.textHits, key = { "t" + it.first.id }) { (doc, snippet) ->
+                    ListItem(
+                        headlineContent = { Text(doc.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        supportingContent = { Text(snippet, maxLines = 3, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall) },
+                        leadingContent = { Icon(Icons.Default.PictureAsPdf, null, tint = MaterialTheme.colorScheme.primary) },
+                        modifier = Modifier.clickable { onOpenDocument(Uri.parse(doc.uri)) },
                     )
                 }
             }
         }
+    }
+
+    folderDialog?.let { d ->
+        FolderDialogView(
+            dialog = d,
+            onDismiss = { folderDialog = null },
+            onCreate = { name, docId -> folderDialog = null; viewModel.createFolder(name, docId) },
+            onRename = { id, name -> folderDialog = null; viewModel.renameFolder(id, name) },
+            onDelete = { id -> folderDialog = null; viewModel.deleteFolder(id) },
+        )
+    }
+    membershipFor?.let { doc ->
+        MembershipDialog(
+            folders = state.folders,
+            member = state.membership[doc.id].orEmpty(),
+            onToggle = { folder, on -> viewModel.setInFolder(doc.id, folder, on) },
+            onNew = { membershipFor = null; folderDialog = FolderDialog.Create(doc.id) },
+            onDismiss = { membershipFor = null },
+        )
     }
 }
 
@@ -216,7 +279,7 @@ private fun SortMenu(expanded: Boolean, current: SortOrder, onDismiss: () -> Uni
 }
 
 @Composable
-private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> Unit) {
+private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> Unit, onFavorite: () -> Unit, onFolders: () -> Unit) {
     val thumb by rememberFileBitmap(doc.thumbnailPath)
     var menu by remember { mutableStateOf(false) }
     ListItem(
@@ -237,7 +300,12 @@ private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> U
                 }
             }
         },
-        headlineContent = { Text(doc.name, maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        headlineContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (doc.isFavorite) Icon(Icons.Default.Star, null, Modifier.size(16.dp).padding(end = 4.dp), tint = MaterialTheme.colorScheme.tertiary)
+                Text(doc.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        },
         supportingContent = {
             val parts = listOfNotNull(
                 formatSize(LocalContext.current, doc.sizeBytes).ifEmpty { null },
@@ -250,6 +318,14 @@ private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> U
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.more)) }
                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (doc.isFavorite) R.string.home_unfavorite else R.string.home_favorite)) },
+                        onClick = { menu = false; onFavorite() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.home_folders)) },
+                        onClick = { menu = false; onFolders() },
+                    )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_remove_from_list)) },
                         onClick = {

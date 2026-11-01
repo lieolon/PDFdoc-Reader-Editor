@@ -9,6 +9,7 @@ data class PdfDocument(
     val lastOpenedAt: Long,
     val lastPage: Int,
     val thumbnailPath: String?,
+    val isFavorite: Boolean = false,
 )
 
 enum class SortOrder { DATE, NAME, SIZE }

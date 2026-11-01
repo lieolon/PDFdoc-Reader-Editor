@@ -40,6 +40,22 @@ import androidx.compose.material.icons.filled.FormatListNumbered
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ViewHeadline
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.material.icons.filled.VerifiedUser
+import androidx.compose.material.icons.filled.FactCheck
+import androidx.compose.material.icons.filled.TableChart
+import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Difference
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -95,16 +111,34 @@ import app.pdfdoc.ui.editor.Palette
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
-private enum class Tool(val icon: ImageVector, val title: Int, val description: Int) {
-    NUMBERS(Icons.Default.FormatListNumbered, R.string.tool_numbers, R.string.tool_numbers_desc),
-    HEADERS(Icons.Default.ViewHeadline, R.string.tool_headers, R.string.tool_headers_desc),
-    WATERMARK(Icons.Default.BrandingWatermark, R.string.tool_watermark, R.string.tool_watermark_desc),
-    COMPRESS(Icons.Default.Compress, R.string.tool_compress, R.string.tool_compress_desc),
-    PROTECT(Icons.Default.Lock, R.string.tool_protect, R.string.tool_protect_desc),
-    SPLIT(Icons.AutoMirrored.Filled.CallSplit, R.string.tool_split, R.string.tool_split_desc),
-    TEXT(Icons.AutoMirrored.Filled.TextSnippet, R.string.tool_text_export, R.string.tool_text_export_desc),
-    DOCX(Icons.Default.Description, R.string.tool_docx, R.string.tool_docx_desc),
-    IMAGES(Icons.Default.Image, R.string.tool_images_export, R.string.tool_images_export_desc),
+private enum class Section(val title: Int) { PAGES(R.string.tools_section_pages), DOCUMENT(R.string.tools_section_document), SECURITY(R.string.tools_section_security), EXPORT(R.string.tools_section_export) }
+
+private enum class Tool(val icon: ImageVector, val title: Int, val description: Int, val section: Section) {
+    NUMBERS(Icons.Default.FormatListNumbered, R.string.tool_numbers, R.string.tool_numbers_desc, Section.PAGES),
+    HEADERS(Icons.Default.ViewHeadline, R.string.tool_headers, R.string.tool_headers_desc, Section.PAGES),
+    WATERMARK(Icons.Default.BrandingWatermark, R.string.tool_watermark, R.string.tool_watermark_desc, Section.PAGES),
+    CROP(Icons.Default.Crop, R.string.tool_crop, R.string.tool_crop_desc, Section.PAGES),
+    RESIZE(Icons.Default.AspectRatio, R.string.tool_resize, R.string.tool_resize_desc, Section.PAGES),
+    SPLIT(Icons.AutoMirrored.Filled.CallSplit, R.string.tool_split, R.string.tool_split_desc, Section.PAGES),
+    PROPERTIES(Icons.Default.Info, R.string.tool_properties, R.string.tool_properties_desc, Section.DOCUMENT),
+    OUTLINE(Icons.AutoMirrored.Filled.List, R.string.tool_outline, R.string.tool_outline_desc, Section.DOCUMENT),
+    ATTACHMENTS(Icons.Default.AttachFile, R.string.tool_attachments, R.string.tool_attachments_desc, Section.DOCUMENT),
+    FLATTEN(Icons.Default.Layers, R.string.tool_flatten, R.string.tool_flatten_desc, Section.DOCUMENT),
+    COMPRESS(Icons.Default.Compress, R.string.tool_compress, R.string.tool_compress_desc, Section.DOCUMENT),
+    PDFA(Icons.Default.Archive, R.string.tool_pdfa, R.string.tool_pdfa_desc, Section.DOCUMENT),
+    PROTECT(Icons.Default.Lock, R.string.tool_protect, R.string.tool_protect_desc, Section.SECURITY),
+    REDACT(Icons.Default.VisibilityOff, R.string.tool_redact_text, R.string.tool_redact_text_desc, Section.SECURITY),
+    SANITIZE(Icons.Default.CleaningServices, R.string.tool_sanitize, R.string.tool_sanitize_desc, Section.SECURITY),
+    SIGN(Icons.Default.VerifiedUser, R.string.tool_sign, R.string.tool_sign_desc, Section.SECURITY),
+    VERIFY(Icons.Default.FactCheck, R.string.tool_verify, R.string.tool_verify_desc, Section.SECURITY),
+    TEXT(Icons.AutoMirrored.Filled.TextSnippet, R.string.tool_text_export, R.string.tool_text_export_desc, Section.EXPORT),
+    DOCX(Icons.Default.Description, R.string.tool_docx, R.string.tool_docx_desc, Section.EXPORT),
+    XLSX(Icons.Default.TableChart, R.string.tool_xlsx, R.string.tool_xlsx_desc, Section.EXPORT),
+    HTML(Icons.Default.Code, R.string.tool_html, R.string.tool_html_desc, Section.EXPORT),
+    MARKDOWN(Icons.Default.Notes, R.string.tool_markdown, R.string.tool_markdown_desc, Section.EXPORT),
+    EPUB(Icons.Default.MenuBook, R.string.tool_epub, R.string.tool_epub_desc, Section.EXPORT),
+    IMAGES(Icons.Default.Image, R.string.tool_images_export, R.string.tool_images_export_desc, Section.EXPORT),
+    COMPARE(Icons.Default.Difference, R.string.tool_compare, R.string.tool_compare_desc, Section.EXPORT),
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,6 +146,7 @@ private enum class Tool(val icon: ImageVector, val title: Int, val description: 
 fun ToolsScreen(
     onBack: () -> Unit,
     onOpenDocument: (Uri) -> Unit,
+    onCompare: (Uri, Uri) -> Unit,
     viewModel: ToolsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -127,6 +162,13 @@ fun ToolsScreen(
         uri?.let(viewModel::exportText)
     }
     val docxLauncher = rememberCreateDocument(DOCX_MIME) { uri -> uri?.let(viewModel::exportDocx) }
+    val xlsxLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.XLSX.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.XLSX, it) } }
+    val htmlLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.HTML.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.HTML, it) } }
+    val markdownLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.MARKDOWN.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.MARKDOWN, it) } }
+    val epubLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.EPUB.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.EPUB, it) } }
+    val compareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { other ->
+        if (other != null) onCompare(viewModel.uri, other)
+    }
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) folderAction?.invoke(uri)
         folderAction = null
@@ -167,15 +209,33 @@ fun ToolsScreen(
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.failed -> MessageView(stringResource(R.string.error_open))
                 else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(Tool.entries) { tool ->
-                        ListItem(
-                            headlineContent = { Text(stringResource(tool.title)) },
-                            supportingContent = { Text(stringResource(tool.description)) },
-                            leadingContent = { Icon(tool.icon, null, tint = MaterialTheme.colorScheme.primary) },
-                            modifier = Modifier.clickable {
-                                if (tool == Tool.TEXT) textLauncher.launch("${viewModel.baseName}.txt") else active = tool
-                            },
-                        )
+                    Section.entries.forEach { section ->
+                        item(key = section.name) {
+                            Text(
+                                stringResource(section.title),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp),
+                            )
+                        }
+                        items(Tool.entries.filter { it.section == section }, key = { it.name }) { tool ->
+                            ListItem(
+                                headlineContent = { Text(stringResource(tool.title)) },
+                                supportingContent = { Text(stringResource(tool.description)) },
+                                leadingContent = { Icon(tool.icon, null, tint = MaterialTheme.colorScheme.primary) },
+                                modifier = Modifier.clickable {
+                                    when (tool) {
+                                        Tool.TEXT -> textLauncher.launch("${viewModel.baseName}.txt")
+                                        Tool.XLSX -> xlsxLauncher.launch("${viewModel.baseName}.xlsx")
+                                        Tool.HTML -> htmlLauncher.launch("${viewModel.baseName}.html")
+                                        Tool.MARKDOWN -> markdownLauncher.launch("${viewModel.baseName}.md")
+                                        Tool.EPUB -> epubLauncher.launch("${viewModel.baseName}.epub")
+                                        Tool.COMPARE -> compareLauncher.launch(arrayOf("application/pdf"))
+                                        else -> active = tool
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -213,7 +273,18 @@ fun ToolsScreen(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
                     ) { Text(stringResource(R.string.tool_docx_continue)) }
                 }
-                Tool.TEXT -> Unit
+                Tool.CROP -> CropOptions(save)
+                Tool.RESIZE -> ResizeOptions(save)
+                Tool.PROPERTIES -> PropertiesOptions(viewModel, save)
+                Tool.OUTLINE -> OutlineOptions(viewModel, state.pageCount, save)
+                Tool.ATTACHMENTS -> AttachmentsOptions(viewModel)
+                Tool.FLATTEN -> SimpleJobOptions(R.string.tool_flatten, R.string.tool_flatten_note, DocumentJob.Flatten, "flat", save)
+                Tool.PDFA -> SimpleJobOptions(R.string.tool_pdfa, R.string.tool_pdfa_note, DocumentJob.PdfA, "PDF-A", save)
+                Tool.REDACT -> RedactTextOptions(save)
+                Tool.SANITIZE -> SanitizeOptionsSheet(save)
+                Tool.SIGN -> SignOptions(viewModel, state.pageCount, save)
+                Tool.VERIFY -> VerifyOptions(viewModel)
+                Tool.TEXT, Tool.XLSX, Tool.HTML, Tool.MARKDOWN, Tool.EPUB, Tool.COMPARE -> Unit
             }
         }
     }
@@ -221,7 +292,7 @@ fun ToolsScreen(
 
 private const val DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
-private class SaveActions(val replace: (DocumentJob) -> Unit, val copy: (DocumentJob, String) -> Unit)
+internal class SaveActions(val replace: (DocumentJob) -> Unit, val copy: (DocumentJob, String) -> Unit)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -235,17 +306,17 @@ private fun ToolSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.()
 }
 
 @Composable
-private fun SheetTitle(text: Int) {
+internal fun SheetTitle(text: Int) {
     Text(stringResource(text), style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(bottom = 12.dp))
 }
 
 @Composable
-private fun Label(text: Int) {
+internal fun Label(text: Int) {
     Text(stringResource(text), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
 }
 
 @Composable
-private fun SaveButtons(enabled: Boolean, onCopy: () -> Unit, onReplace: () -> Unit) {
+internal fun SaveButtons(enabled: Boolean, onCopy: () -> Unit, onReplace: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 20.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedButton(onClick = onCopy, enabled = enabled, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.tools_save_copy)) }
         Button(onClick = onReplace, enabled = enabled, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.tools_replace)) }
@@ -253,7 +324,7 @@ private fun SaveButtons(enabled: Boolean, onCopy: () -> Unit, onReplace: () -> U
 }
 
 @Composable
-private fun SliderRow(label: Int, value: Float, range: ClosedFloatingPointRange<Float>, display: String, onChange: (Float) -> Unit) {
+internal fun SliderRow(label: Int, value: Float, range: ClosedFloatingPointRange<Float>, display: String, onChange: (Float) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(label), Modifier.width(110.dp), style = MaterialTheme.typography.bodyMedium)
         Slider(value = value, onValueChange = onChange, valueRange = range, modifier = Modifier.weight(1f))

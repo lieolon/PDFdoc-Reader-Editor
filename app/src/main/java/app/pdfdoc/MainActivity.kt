@@ -18,27 +18,57 @@ import app.pdfdoc.ui.navigation.AppNavHost
 import app.pdfdoc.ui.theme.PdfDocTheme
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 
 @AndroidEntryPoint
-class MainActivity : AppCompatActivity() {
+open class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var settings: SettingsRepository
 
     private var incomingUri by mutableStateOf<Uri?>(null)
+    private var locked by mutableStateOf(false)
+    private var lockEnabled = false
+    private var backgroundSince = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) incomingUri = intent.pdfUri()
+        lockEnabled = kotlinx.coroutines.runBlocking { settings.appLock.first() }
+        locked = lockEnabled && (savedInstanceState == null || savedInstanceState.getBoolean(KEY_LOCKED, true))
+        lifecycleScope.launch {
+            settings.appLock.collect { lockEnabled = it }
+        }
         setContent {
             val themeMode by settings.themeMode.collectAsStateWithLifecycle(ThemeMode.SYSTEM)
             val folder by settings.defaultFolder.collectAsStateWithLifecycle(null)
             CompositionLocalProvider(LocalDefaultFolder provides folder?.let(Uri::parse)) {
                 PdfDocTheme(themeMode) {
-                    AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+                    if (locked) {
+                        app.pdfdoc.ui.lock.LockScreen(onUnlock = { app.pdfdoc.ui.lock.AppLock.prompt(this) { locked = false } })
+                    } else {
+                        AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+                    }
                 }
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        backgroundSince = System.currentTimeMillis()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (lockEnabled && backgroundSince > 0 && System.currentTimeMillis() - backgroundSince > app.pdfdoc.ui.lock.AppLock.TIMEOUT_MS) locked = true
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(KEY_LOCKED, locked)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -47,4 +77,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun Intent.pdfUri(): Uri? = if (action == Intent.ACTION_VIEW) data else null
+
+    private companion object {
+        const val KEY_LOCKED = "locked"
+    }
 }
+
+/** A second window for viewing two documents side by side in split screen. */
+@AndroidEntryPoint
+class SecondWindowActivity : MainActivity()

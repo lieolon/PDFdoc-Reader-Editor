@@ -112,6 +112,8 @@ class ViewerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val events: DocumentEvents,
     private val comments: app.pdfdoc.data.pdf.PdfComments,
+    val tabs: OpenTabs,
+    private val library: app.pdfdoc.data.library.LibraryIndex,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -122,6 +124,12 @@ class ViewerViewModel @Inject constructor(
 
     private val _search = MutableStateFlow(SearchState())
     val search: StateFlow<SearchState> = _search.asStateFlow()
+
+    val keepScreenOn: StateFlow<Boolean> = settings.keepScreenOn.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    fun setKeepScreenOn(on: Boolean) {
+        viewModelScope.launch { settings.setKeepScreenOn(on) }
+    }
 
     val viewMode: StateFlow<app.pdfdoc.domain.model.ViewMode> =
         settings.viewMode.stateIn(viewModelScope, SharingStarted.Eagerly, app.pdfdoc.domain.model.ViewMode.CONTINUOUS)
@@ -185,6 +193,7 @@ class ViewerViewModel @Inject constructor(
             runCatching {
                 val work = withContext(io) { docs.openWorkingCopy(uri) }
                 val doc = documents.recordOpened(uri, work)
+                launch(io) { runCatching { library.index(doc.id, "${doc.sizeBytes}:${doc.pageCount}", work) } }
                 val (newSession, hasForm) = withContext(io) {
                     val flat = files.newWorkFile()
                     val render = if (renderCopies.build(work, flat, excludeOwn = false)) flat else work.also { flat.delete() }
@@ -213,6 +222,7 @@ class ViewerViewModel @Inject constructor(
                 )
             }.onSuccess {
                 _state.value = it
+                tabs.open(uri, it.name)
                 documentId.value = it.documentId
                 if (_search.value.searched) runSearch(_search.value.query)
             }.onFailure { e ->

@@ -14,6 +14,7 @@ import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 
@@ -26,6 +27,7 @@ sealed interface ExportProgress {
 class ScanExporter @Inject constructor(
     private val ocr: OcrEngine,
     private val textLayer: TextLayerWriter,
+    private val settings: app.pdfdoc.data.settings.SettingsRepository,
 ) {
     suspend fun writePdf(
         pages: List<File>,
@@ -48,7 +50,7 @@ class ScanExporter @Inject constructor(
                 }
                 if (recognize) {
                     progress(ExportProgress.Recognizing(i + 1, pages.size))
-                    val words = ocr.recognize(bitmap)
+                    val words = ocr.recognize(bitmap, settings.ocrLanguages.first())
                     textLayer.write(doc, page, words, bitmap.width, bitmap.height, font)
                 }
                 bitmap.recycle()

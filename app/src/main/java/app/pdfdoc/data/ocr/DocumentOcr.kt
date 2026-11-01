@@ -8,6 +8,7 @@ import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import java.io.File
 import javax.inject.Inject
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlin.math.roundToInt
@@ -17,6 +18,7 @@ class DocumentOcr @Inject constructor(
     private val ocr: OcrEngine,
     private val renderers: PdfRenderSessionFactory,
     private val textLayer: TextLayerWriter,
+    private val settings: app.pdfdoc.data.settings.SettingsRepository,
 ) {
     /**
      * Recognizes every page of [source] that has no text layer and writes the result to [target].
@@ -37,7 +39,7 @@ class DocumentOcr @Inject constructor(
                     // About 300 dpi, capped to keep memory reasonable.
                     val width = (geometry.displayWidth * DPI / 72f).roundToInt().coerceIn(1, MAX_SIDE)
                     val bitmap = session.render(i, width) ?: continue
-                    val words = ocr.recognize(bitmap)
+                    val words = ocr.recognize(bitmap, settings.ocrLanguages.first())
                     textLayer.write(doc, page, words, bitmap.width, bitmap.height, font)
                     bitmap.recycle()
                     if (words.isNotEmpty()) recognized++

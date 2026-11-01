@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -259,4 +261,61 @@ fun ConfirmDialog(title: String, text: String?, confirm: String, onDismiss: () -
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirm) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** Opens [uri] in a second window next to this one (split screen on phones, a new window on tablets). */
+fun openSideBySide(context: Context, uri: Uri) {
+    val intent = Intent(context, app.pdfdoc.SecondWindowActivity::class.java)
+        .setAction(Intent.ACTION_VIEW)
+        .setDataAndType(uri, "application/pdf")
+        .addFlags(
+            Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_MULTIPLE_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION,
+        )
+    runCatching { context.startActivity(intent) }
+        .onFailure { Toast.makeText(context, R.string.no_app_for_action, Toast.LENGTH_SHORT).show() }
+}
+
+@Composable
+fun KeepScreenOnEffect(on: Boolean) {
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(on) {
+        view.keepScreenOn = on
+        onDispose { view.keepScreenOn = false }
+    }
+}
+
+@Composable
+fun TabsRow(tabs: List<OpenTab>, current: Uri, onSelect: (Uri) -> Unit, onClose: (Uri) -> Unit) {
+    val selected = tabs.indexOfFirst { it.uri == current }.coerceAtLeast(0)
+    androidx.compose.material3.ScrollableTabRow(selectedTabIndex = selected, edgePadding = 8.dp) {
+        tabs.forEachIndexed { i, tab ->
+            androidx.compose.material3.Tab(
+                selected = i == selected,
+                onClick = { onSelect(tab.uri) },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(tab.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 160.dp))
+                        Icon(
+                            Icons.Default.Close,
+                            stringResource(R.string.tab_close),
+                            modifier = Modifier.padding(start = 6.dp).size(16.dp).clickable { onClose(tab.uri) },
+                        )
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+fun AutoScrollBar(speed: Float, onSpeed: (Float) -> Unit, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier.padding(horizontal = 12.dp), shape = RoundedCornerShape(28.dp), tonalElevation = 6.dp, shadowElevation = 6.dp) {
+        Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { onSpeed((speed / 1.5f).coerceAtLeast(10f)) }) { Icon(Icons.Default.FastRewind, stringResource(R.string.auto_scroll_slower)) }
+            Text(stringResource(R.string.auto_scroll), style = MaterialTheme.typography.labelMedium)
+            IconButton(onClick = { onSpeed((speed * 1.5f).coerceAtMost(400f)) }) { Icon(Icons.Default.FastForward, stringResource(R.string.auto_scroll_faster)) }
+            IconButton(onClick = { onSpeed(0f) }) { Icon(Icons.Default.Stop, stringResource(R.string.read_aloud_stop)) }
+        }
+    }
 }

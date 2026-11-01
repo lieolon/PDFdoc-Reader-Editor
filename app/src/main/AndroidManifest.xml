@@ -49,6 +49,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Second instance for split screen ("Open side by side"). -->
+        <activity
+            android:name=".SecondWindowActivity"
+            android:exported="false"
+            android:launchMode="standard"
+            android:taskAffinity="app.pdfdoc.second"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- WorkManager is initialized on demand with the Hilt worker factory. -->
         <provider
             android:name="androidx.startup.InitializationProvider"

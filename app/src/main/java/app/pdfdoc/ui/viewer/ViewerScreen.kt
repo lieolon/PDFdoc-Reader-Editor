@@ -11,6 +11,10 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.ChromeReaderMode
+import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.material.icons.filled.SwipeDown
+import androidx.compose.material.icons.filled.VerticalSplit
 import androidx.compose.material3.RadioButton
 import app.pdfdoc.domain.model.ViewMode
 import android.Manifest
@@ -76,7 +80,6 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -177,6 +180,9 @@ fun ViewerScreen(
     onEdit: (String) -> Unit,
     onFillForm: (String) -> Unit,
     onTools: (String) -> Unit,
+    onReader: (String, Int) -> Unit,
+    onPresent: (String, Int) -> Unit,
+    onOpenDocument: (android.net.Uri) -> Unit,
     viewModel: ViewerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -204,8 +210,13 @@ fun ViewerScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
+    val density = LocalDensity.current.density
     val reading by viewModel.readAloud.state.collectAsStateWithLifecycle()
     var pendingLink by remember { mutableStateOf<String?>(null) }
+    val openTabs by viewModel.tabs.tabs.collectAsStateWithLifecycle()
+    val keepOn by viewModel.keepScreenOn.collectAsStateWithLifecycle()
+    var autoScroll by remember { mutableStateOf(0f) }
+    KeepScreenOnEffect(keepOn || autoScroll > 0f || reading.active)
     LaunchedEffect(reading.unavailable) {
         if (reading.unavailable) snackbar.showSnackbar(context.getString(R.string.read_aloud_unavailable))
     }
@@ -227,7 +238,7 @@ fun ViewerScreen(
                         onPrevious = viewModel::previousHit,
                         onClose = viewModel::closeSearch,
                     )
-                } else {
+                } else Column {
                     TopAppBar(
                         title = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
@@ -278,6 +289,31 @@ fun ViewerScreen(
                                         onClick = { menu = false; navigation = true },
                                     )
                                     DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.reader_mode)) },
+                                        leadingIcon = { Icon(Icons.Default.ChromeReaderMode, null) },
+                                        onClick = { menu = false; onReader(viewModel.uri.toString(), currentPage(listState, mode)) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.present_mode)) },
+                                        leadingIcon = { Icon(Icons.Default.Slideshow, null) },
+                                        onClick = { menu = false; onPresent(viewModel.uri.toString(), currentPage(listState, mode)) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.auto_scroll)) },
+                                        leadingIcon = { Icon(Icons.Default.SwipeDown, null) },
+                                        onClick = { menu = false; autoScroll = 40f; chromeVisible = true },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.keep_screen_on)) },
+                                        leadingIcon = { androidx.compose.material3.Checkbox(checked = keepOn, onCheckedChange = null) },
+                                        onClick = { menu = false; viewModel.setKeepScreenOn(!keepOn) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.open_side_by_side)) },
+                                        leadingIcon = { Icon(Icons.Default.VerticalSplit, null) },
+                                        onClick = { menu = false; openSideBySide(context, viewModel.uri) },
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.read_aloud)) },
                                         leadingIcon = { Icon(Icons.Default.RecordVoiceOver, null) },
                                         onClick = { menu = false; viewModel.startReading(currentPage(listState, mode)) },
@@ -311,6 +347,20 @@ fun ViewerScreen(
                             }
                         },
                     )
+                    if (openTabs.size > 1) {
+                        TabsRow(
+                            tabs = openTabs,
+                            current = viewModel.uri,
+                            onSelect = { if (it != viewModel.uri) onOpenDocument(it) },
+                            onClose = { uri ->
+                                viewModel.tabs.close(uri)
+                                if (uri == viewModel.uri) {
+                                    val next = openTabs.firstOrNull { it.uri != uri }
+                                    if (next != null) onOpenDocument(next.uri) else onBack()
+                                }
+                            },
+                        )
+                    }
                 }
             }
         },
@@ -392,6 +442,26 @@ fun ViewerScreen(
                             onRead = { viewModel.startReading(sel.page) },
                             modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp),
                         )
+                    }
+                    if (autoScroll > 0f) {
+                        AutoScrollBar(
+                            speed = autoScroll,
+                            onSpeed = { autoScroll = it },
+                            modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 72.dp),
+                        )
+                        LaunchedEffect(Unit) {
+                            var last = 0L
+                            while (true) {
+                                withFrameNanos { now ->
+                                    if (last != 0L) {
+                                        val dy = autoScroll * density * (now - last) / 1_000_000_000f
+                                        listState.dispatchRawDelta(dy)
+                                    }
+                                    last = now
+                                }
+                                if (!listState.canScrollForward) autoScroll = 0f
+                            }
+                        }
                     }
                     if (reading.active) {
                         ReadAloudBar(

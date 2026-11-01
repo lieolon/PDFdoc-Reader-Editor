@@ -35,6 +35,8 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onScan = { nav.navigate(ScanRoute()) },
                 onImagesToPdf = { nav.navigate(ScanRoute(fromImages = true)) },
                 onSettings = { nav.navigate(SettingsRoute) },
+                onBatch = { nav.navigate(BatchRoute) },
+                onTextToPdf = { nav.navigate(TextToPdfRoute) },
             )
         }
         composable<ViewerRoute> {
@@ -44,6 +46,9 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onEdit = { uri -> nav.navigate(EditorRoute(uri)) },
                 onFillForm = { uri -> nav.navigate(FormRoute(uri)) },
                 onTools = { uri -> nav.navigate(ToolsRoute(uri)) },
+                onReader = { uri, page -> nav.navigate(ReaderRoute(uri, page)) },
+                onPresent = { uri, page -> nav.navigate(PresentRoute(uri, page)) },
+                onOpenDocument = { uri -> nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() } },
             )
         }
         composable<PagesRoute> {
@@ -92,6 +97,28 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onOpenDocument = { uri ->
                     nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() }
                 },
+                onCompare = { old, new -> nav.navigate(CompareRoute(old.toString(), new.toString())) },
+            )
+        }
+        composable<CompareRoute> {
+            app.pdfdoc.ui.compare.CompareScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri -> nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() } },
+            )
+        }
+        composable<ReaderRoute> {
+            app.pdfdoc.ui.reader.ReaderScreen(onBack = nav::popBackStack)
+        }
+        composable<PresentRoute> {
+            app.pdfdoc.ui.reader.PresentScreen(onBack = nav::popBackStack)
+        }
+        composable<BatchRoute> {
+            app.pdfdoc.ui.batch.BatchScreen(onBack = nav::popBackStack)
+        }
+        composable<TextToPdfRoute> {
+            app.pdfdoc.ui.batch.TextToPdfScreen(
+                onBack = nav::popBackStack,
+                onOpenDocument = { uri -> nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() } },
             )
         }
         composable<SettingsRoute> {

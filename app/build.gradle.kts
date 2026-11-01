@@ -54,10 +54,6 @@ android {
         // Users can switch the app language in settings, so every language must be on the device.
         language { enableSplit = false }
     }
-    androidResources {
-        // Tesseract models are already compressed; storing them avoids a slow inflate on first OCR.
-        noCompress += "traineddata"
-    }
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
@@ -107,6 +103,9 @@ dependencies {
     implementation(libs.hilt.work)
     ksp(libs.hilt.work.compiler)
     implementation(libs.androidx.appcompat)
+    implementation(libs.bouncycastle.prov)
+    implementation(libs.bouncycastle.pkix)
+    implementation(libs.androidx.biometric)
 
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)

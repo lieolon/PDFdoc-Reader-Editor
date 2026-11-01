@@ -27,7 +27,9 @@ object AppModule {
     @Provides
     @Singleton
     fun database(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "pdfdoc.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "pdfdoc.db")
+            .addMigrations(AppDatabase.MIGRATION_1_2)
+            .build()
 
     @Provides
     fun documentDao(db: AppDatabase): DocumentDao = db.documentDao()
@@ -37,6 +39,9 @@ object AppModule {
 
     @Provides
     fun bookmarkDao(db: AppDatabase): app.pdfdoc.data.db.BookmarkDao = db.bookmarkDao()
+
+    @Provides
+    fun libraryDao(db: AppDatabase): app.pdfdoc.data.db.LibraryDao = db.libraryDao()
 
     @Provides
     @IoDispatcher

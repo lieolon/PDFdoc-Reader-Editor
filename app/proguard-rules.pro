@@ -12,3 +12,8 @@
 -keepattributes *Annotation*, InnerClasses
 -keep,includedescriptorclasses class app.pdfdoc.domain.edit.**$$serializer { *; }
 -keepclassmembers class app.pdfdoc.domain.edit.** { *** Companion; kotlinx.serialization.KSerializer serializer(...); }
+
+# BouncyCastle (digital signatures) looks up algorithm implementations by class name.
+-keep class org.bouncycastle.jcajce.provider.** { *; }
+-keep class org.bouncycastle.jce.provider.** { *; }
+-dontwarn javax.naming.**

@@ -63,6 +63,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setTheme(mode: ThemeMode) = launch { settings.setThemeMode(mode) }
+    val authorName = settings.authorName.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, "")
+    val ocrLanguages = settings.ocrLanguages.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, "rus+eng")
+    val keepScreenOn = settings.keepScreenOn.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
+    val appLock = settings.appLock.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, false)
+    fun setAuthorName(name: String) = launch { settings.setAuthorName(name) }
+    fun setOcrLanguages(codes: List<String>) = launch { settings.setOcrLanguages(codes.ifEmpty { listOf("eng") }.joinToString("+")) }
+    fun setKeepScreenOn(on: Boolean) = launch { settings.setKeepScreenOn(on) }
+    fun setAppLock(on: Boolean) = launch { settings.setAppLock(on) }
     fun setExportDpi(dpi: Int) = launch { settings.setExportDpi(dpi) }
     fun setJpegQuality(q: Int) = launch { settings.setJpegQuality(q) }
     fun setCompressLevel(level: CompressLevel) = launch { settings.setCompressLevel(level) }

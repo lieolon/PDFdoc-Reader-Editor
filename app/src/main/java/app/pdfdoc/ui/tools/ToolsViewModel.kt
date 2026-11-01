@@ -53,6 +53,31 @@ sealed interface DocumentJob {
     data class Compress(val level: CompressLevel) : DocumentJob
     data class Protect(val openPassword: String, val ownerPassword: String, val permissions: PdfPermissions) : DocumentJob
     data object RemovePassword : DocumentJob
+    data class CropMargins(val top: Float, val right: Float, val bottom: Float, val left: Float) : DocumentJob
+    data object AutoCrop : DocumentJob
+    data class Resize(val paper: app.pdfdoc.data.pdf.PaperSize) : DocumentJob
+    data object Flatten : DocumentJob
+    data class Properties(val properties: app.pdfdoc.data.pdf.DocProperties) : DocumentJob
+    data class Sanitize(val options: app.pdfdoc.data.pdf.SanitizeOptions) : DocumentJob
+    data class Outline(val entries: List<app.pdfdoc.data.pdf.OutlineEntry>) : DocumentJob
+    data object PdfA : DocumentJob
+    /** Removes every match of [query] and of the selected [patterns] for good. */
+    data class RedactText(val query: String, val patterns: Set<RedactPattern>) : DocumentJob
+    data class Sign(
+        val certificate: String,
+        val password: CharArray,
+        val reason: String,
+        val location: String,
+        val visiblePage: Int,
+    ) : DocumentJob
+}
+
+enum class RedactPattern(val regex: Regex) {
+    EMAIL(Regex("""[\w.+-]+@[\w-]+\.[\w.-]+""")),
+    PHONE(Regex("""(?<![\w])\+?\d[\d ()\-]{8,}\d""")),
+    CARD(Regex("""(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)""")),
+    IBAN(Regex("""\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b""")),
+    PASSPORT(Regex("""(?<!\d)\d{2} ?\d{2} ?\d{6}(?!\d)""")),
 }
 
 enum class ImageFormat { JPG, PNG }
@@ -88,6 +113,11 @@ class ToolsViewModel @Inject constructor(
     private val docEvents: DocumentEvents,
     private val settings: SettingsRepository,
     private val docx: app.pdfdoc.data.convert.DocxWriter,
+    private val docTools: app.pdfdoc.data.pdf.PdfDocumentTools,
+    private val textExports: app.pdfdoc.data.convert.TextExports,
+    private val redactor: app.pdfdoc.data.pdf.Redactor,
+    val certificates: app.pdfdoc.data.sign.CertificateStore,
+    private val signer: app.pdfdoc.data.sign.PdfSigner,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -161,12 +191,47 @@ class ToolsViewModel @Inject constructor(
                     is DocumentJob.Protect ->
                         security.protect(source, out, job.openPassword, job.ownerPassword, job.permissions)
                     DocumentJob.RemovePassword -> source.copyTo(out, overwrite = true)
+                    is DocumentJob.CropMargins -> docTools.cropMargins(source, out, job.top, job.right, job.bottom, job.left, null)
+                    DocumentJob.AutoCrop -> {
+                        val n = docTools.autoCrop(source, out)
+                        message = ToolsEvent.Message(R.string.tool_crop_auto_done, listOf(n.toString()))
+                    }
+                    is DocumentJob.Resize -> docTools.resizePages(source, out, job.paper)
+                    DocumentJob.Flatten -> if (!docTools.flatten(source, out)) message = ToolsEvent.Message(R.string.tool_flatten_nothing)
+                    is DocumentJob.Properties -> docTools.setProperties(source, out, job.properties)
+                    is DocumentJob.Sanitize -> docTools.sanitize(source, out, job.options)
+                    is DocumentJob.Outline -> docTools.setOutline(source, out, job.entries)
+                    DocumentJob.PdfA -> {
+                        val missing = docTools.toPdfA(source, out, baseName)
+                        message = if (missing > 0) ToolsEvent.Message(R.string.tool_pdfa_fonts, listOf(missing.toString()))
+                        else ToolsEvent.Message(R.string.tool_pdfa_done)
+                    }
+                    is DocumentJob.RedactText -> {
+                        val areas = findAreas(source, job)
+                        if (areas.isEmpty()) {
+                            _events.send(ToolsEvent.Message(R.string.tool_redact_none))
+                            return@launchBusy
+                        }
+                        redactor.redact(source, out, areas)
+                        message = ToolsEvent.Message(R.string.tool_redact_done, listOf(areas.values.sumOf { it.size }.toString()))
+                    }
+                    is DocumentJob.Sign -> {
+                        val (key, chain) = try {
+                            certificates.unlock(job.certificate, job.password)
+                        } catch (e: app.pdfdoc.data.sign.WrongPasswordException) {
+                            _events.send(ToolsEvent.Message(R.string.sign_wrong_password))
+                            return@launchBusy
+                        }
+                        signer.sign(source, out, key, chain, job.reason, job.location, job.visiblePage, context.getString(R.string.sign_block_label))
+                        message = ToolsEvent.Message(R.string.sign_done)
+                    }
                 }
-                if (job is DocumentJob.Protect || job is DocumentJob.RemovePassword) {
+                if (job is DocumentJob.Protect || job is DocumentJob.RemovePassword || job is DocumentJob.Sign) {
                     // Security output is final: never re-encrypt it with the old password.
                     files.writeTo(target, out)
                     when (job) {
                         is DocumentJob.Protect -> if (job.openPassword.isNotEmpty()) docs.rememberPassword(target, job.openPassword) else docs.forgetPassword(target)
+                        is DocumentJob.Sign -> Unit
                         else -> docs.forgetPassword(target)
                     }
                 } else {
@@ -188,6 +253,85 @@ class ToolsViewModel @Inject constructor(
             }
         }
     }
+
+    private fun findAreas(source: File, job: DocumentJob.RedactText): Map<Int, List<app.pdfdoc.domain.edit.Box>> =
+        com.tom_roush.pdfbox.pdmodel.PDDocument.load(source, com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+            (0 until doc.numberOfPages).associateWith { page ->
+                val text = runCatching { app.pdfdoc.data.pdf.TextExtractor.extract(doc, page) }.getOrNull() ?: return@associateWith emptyList()
+                val hits = mutableListOf<app.pdfdoc.domain.edit.Box>()
+                if (job.query.isNotBlank()) hits += text.find(job.query).flatten()
+                job.patterns.forEach { hits += text.findRegex(it.regex).flatten() }
+                hits.map { it.inset(-1f) }
+            }.filterValues { it.isNotEmpty() }
+        }
+
+    // region Document info, attachments, outline, signatures
+
+    suspend fun properties(): app.pdfdoc.data.pdf.DocProperties? = withContext(io) {
+        working?.let { runCatching { docTools.properties(it) }.getOrNull() }
+    }
+
+    suspend fun outline(): List<app.pdfdoc.data.pdf.OutlineEntry> = withContext(io) {
+        working?.let { runCatching { docTools.outline(it) }.getOrNull() }.orEmpty()
+    }
+
+    private val _attachments = MutableStateFlow<List<app.pdfdoc.data.pdf.Attachment>?>(null)
+    val attachments: StateFlow<List<app.pdfdoc.data.pdf.Attachment>?> = _attachments.asStateFlow()
+
+    fun loadAttachments() {
+        viewModelScope.launch {
+            _attachments.value = withContext(io) { working?.let { runCatching { docTools.attachments(it) }.getOrNull() }.orEmpty() }
+        }
+    }
+
+    fun addAttachment(file: Uri) = changeInPlace { source, out ->
+        val info = files.query(file)
+        val mime = context.contentResolver.getType(file)
+        context.contentResolver.openInputStream(file)?.use { docTools.addAttachment(source, out, info.name, mime, it) } ?: error("read")
+    }
+
+    fun removeAttachment(name: String) = changeInPlace { source, out -> docTools.removeAttachment(source, out, name) }
+
+    fun saveAttachment(name: String, target: Uri) {
+        val source = working ?: return
+        launchBusy {
+            val bytes = docTools.readAttachment(source, name) ?: error("missing")
+            context.contentResolver.openOutputStream(target, "wt")?.use { it.write(bytes) } ?: error("write")
+            _events.send(ToolsEvent.Message(R.string.saved))
+        }
+    }
+
+    /** Applies a structural change and saves it into the document right away. */
+    private fun changeInPlace(change: (File, File) -> Unit) {
+        val source = working ?: return
+        launchBusy {
+            val out = files.newWorkFile()
+            try {
+                change(source, out)
+                docs.save(out, uri, uri)
+                out.copyTo(source, overwrite = true)
+                docEvents.notifyChanged(uri.toString())
+            } finally {
+                out.delete()
+            }
+            _attachments.value = docTools.attachments(source)
+            _events.send(ToolsEvent.Message(R.string.saved))
+        }
+    }
+
+    suspend fun verifySignatures(): List<app.pdfdoc.data.sign.SignatureCheck>? = withContext(io) {
+        working?.let { runCatching { signer.verify(it) }.getOrNull() }
+    }
+
+    fun exportAs(format: app.pdfdoc.data.convert.TextFormat, target: Uri) {
+        val source = working ?: return
+        launchBusy {
+            context.contentResolver.openOutputStream(target, "wt")?.use { textExports.export(source, format, baseName, it) } ?: error("write")
+            _events.send(ToolsEvent.Message(R.string.saved))
+        }
+    }
+
+    // endregion
 
     /** Splits into files written into the folder [tree]. */
     fun split(ranges: List<IntRange>, tree: Uri) {
@@ -268,10 +412,10 @@ class ToolsViewModel @Inject constructor(
     private fun progress(@StringRes text: Int, page: Int, total: Int) =
         _state.update { it.copy(progressText = text, progressArgs = listOf(page, total)) }
 
-    private fun launchBusy(block: suspend () -> Unit) {
+    private fun launchBusy(block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
         viewModelScope.launch {
             _state.update { it.copy(busy = true) }
-            val result = runCatching { withContext(io) { block() } }
+            val result = runCatching { withContext(io, block) }
             _state.update { it.copy(busy = false, progressText = null) }
             result.onFailure { _events.send(ToolsEvent.Message(R.string.error_save)) }
         }
