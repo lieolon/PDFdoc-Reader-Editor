@@ -38,6 +38,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onSettings = { nav.navigate(SettingsRoute) },
                 onBatch = { nav.navigate(BatchRoute) },
                 onTextToPdf = { nav.navigate(TextToPdfRoute) },
+                onTools = { nav.navigate(ToolsRoute(it.toString())) },
             )
         }
         composable<ViewerRoute> {

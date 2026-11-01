@@ -1,5 +1,6 @@
 package app.pdfdoc.ui.home
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.pdfdoc.data.settings.SettingsRepository
@@ -124,6 +125,14 @@ class HomeViewModel @Inject constructor(
 
     fun onSortChange(order: SortOrder) {
         viewModelScope.launch { settings.setSortOrder(order) }
+    }
+
+    /** Keeps access to a PDF picked for the tools screen and lists it in recent files. */
+    fun prepareForTools(uri: Uri, then: (Uri) -> Unit) {
+        viewModelScope.launch {
+            runCatching { documents.recordOpened(uri, null) }
+            then(uri)
+        }
     }
 
     fun remove(id: Long) {

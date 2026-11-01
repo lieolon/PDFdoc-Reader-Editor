@@ -2,6 +2,8 @@ package app.pdfdoc.ui.home
 
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -18,11 +20,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.FolderOpen
@@ -84,13 +89,26 @@ fun HomeScreen(
     onSettings: () -> Unit,
     onBatch: () -> Unit,
     onTextToPdf: () -> Unit,
+    /** A PDF picked to work on with page numbers, watermark, compression, password and export tools. */
+    onTools: (Uri) -> Unit,
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(onOpenFile)
     }
+    val toolsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.prepareForTools(it, onTools) }
+    }
     var sortMenu by remember { mutableStateOf(false) }
+    var searchFocused by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
+    // While searching, the action cards step aside so the field and results fit above the keyboard.
+    val searching = searchFocused || state.query.isNotEmpty()
+    BackHandler(enabled = searching) {
+        viewModel.onQueryChange("")
+        focusManager.clearFocus()
+    }
     var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
     var membershipFor by remember { mutableStateOf<PdfDocument?>(null) }
 
@@ -119,41 +137,50 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 24.dp),
         ) {
-            item {
-                Row(
-                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    QuickAction(Icons.Default.FolderOpen, stringResource(R.string.home_open), Modifier.weight(1f)) {
-                        openLauncher.launch(app.pdfdoc.data.convert.ImportFormats.MIME_TYPES)
+            if (!searching) {
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        QuickAction(Icons.Default.FolderOpen, stringResource(R.string.home_open), Modifier.weight(1f)) {
+                            openLauncher.launch(app.pdfdoc.data.convert.ImportFormats.MIME_TYPES)
+                        }
+                        QuickAction(Icons.Default.DocumentScanner, stringResource(R.string.home_scan), Modifier.weight(1f), onScan)
                     }
-                    QuickAction(Icons.Default.DocumentScanner, stringResource(R.string.home_scan), Modifier.weight(1f), onScan)
                 }
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    QuickAction(Icons.Default.AddPhotoAlternate, stringResource(R.string.home_images_to_pdf), Modifier.weight(1f), onImagesToPdf)
-                    QuickAction(Icons.Default.MergeType, stringResource(R.string.home_merge), Modifier.weight(1f), onMerge)
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        QuickAction(Icons.Default.AddPhotoAlternate, stringResource(R.string.home_images_to_pdf), Modifier.weight(1f), onImagesToPdf)
+                        QuickAction(Icons.Default.MergeType, stringResource(R.string.home_merge), Modifier.weight(1f), onMerge)
+                    }
                 }
-            }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    QuickAction(Icons.Default.DynamicFeed, stringResource(R.string.batch_title), Modifier.weight(1f), onBatch)
-                    QuickAction(Icons.Default.PostAdd, stringResource(R.string.text_to_pdf), Modifier.weight(1f), onTextToPdf)
+                item {
+                    Row(
+                        Modifier.fillMaxWidth().height(IntrinsicSize.Min).padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        QuickAction(Icons.Default.DynamicFeed, stringResource(R.string.batch_title), Modifier.weight(1f), onBatch)
+                        QuickAction(Icons.Default.PostAdd, stringResource(R.string.text_to_pdf), Modifier.weight(1f), onTextToPdf)
+                    }
+                }
+                item {
+                    ToolsAction { toolsLauncher.launch(arrayOf("application/pdf")) }
                 }
             }
             if (state.hasAnyDocuments) {
-                item {
+                // A stable key keeps the field and its focus when the cards above are hidden.
+                item(key = "search") {
                     OutlinedTextField(
                         value = state.query,
                         onValueChange = viewModel::onQueryChange,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .onFocusChanged { searchFocused = it.isFocused },
                         placeholder = { Text(stringResource(R.string.home_search_hint)) },
                         leadingIcon = { Icon(Icons.Default.Search, null) },
                         trailingIcon = {
@@ -259,6 +286,24 @@ private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, on
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 modifier = Modifier.padding(top = 8.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun ToolsAction(onClick: () -> Unit) {
+    ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Build, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+            Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(stringResource(R.string.viewer_tools), style = MaterialTheme.typography.labelLarge)
+                Text(
+                    stringResource(R.string.home_tools_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Tag
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -161,6 +162,14 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
                 leadingContent = { Icon(Icons.Default.Lock, null) },
             )
             Item(Icons.Default.Info, R.string.settings_licenses, null) { dialog = "licenses" }
+            val version = remember {
+                runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
+            }
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_version)) },
+                supportingContent = { Text(version) },
+                leadingContent = { Icon(Icons.Default.Tag, null) },
+            )
         }
     }
 

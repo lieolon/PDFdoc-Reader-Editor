@@ -4,7 +4,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
@@ -46,10 +50,13 @@ open class MainActivity : AppCompatActivity() {
             val folder by settings.defaultFolder.collectAsStateWithLifecycle(null)
             CompositionLocalProvider(LocalDefaultFolder provides folder?.let(Uri::parse)) {
                 PdfDocTheme(themeMode) {
-                    if (locked) {
-                        app.pdfdoc.ui.lock.LockScreen(onUnlock = { app.pdfdoc.ui.lock.AppLock.prompt(this) { locked = false } })
-                    } else {
-                        AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+                    // Edge-to-edge windows are not resized for the keyboard: pad every screen above it so text fields stay visible.
+                    Box(Modifier.fillMaxSize().imePadding()) {
+                        if (locked) {
+                            app.pdfdoc.ui.lock.LockScreen(onUnlock = { app.pdfdoc.ui.lock.AppLock.prompt(this@MainActivity) { locked = false } })
+                        } else {
+                            AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+                        }
                     }
                 }
             }

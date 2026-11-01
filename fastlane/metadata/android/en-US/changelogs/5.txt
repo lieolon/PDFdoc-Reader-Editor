@@ -1,0 +1,3 @@
+• New Tools button on the home screen: compress, password, watermark, page numbers, export to Word and more, without opening the document first.
+• The keyboard no longer covers what you type: search, forms, notes and other fields stay visible.
+• Settings now show the app version.
