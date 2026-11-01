@@ -54,3 +54,29 @@ class PageTextTest {
         assertTrue(text.select(Pt(0f, 0f), Pt(1f, 1f)).isEmpty())
     }
 }
+
+class PageTextRangesTest {
+    private fun page(text: String): PageText = PageText(text.mapIndexed { i, ch ->
+        Glyph(ch, if (ch == ' ' || ch == '\n') null else Box(i * 10f, 0f, i * 10f + 9f, 12f))
+    })
+
+    @Test
+    fun selectsWholeWord() {
+        val p = page("привет мир")
+        assertEquals(0..5, p.wordRange(2))
+        assertEquals("мир", p.text(p.wordRange(8)))
+    }
+
+    @Test
+    fun splitsSentences() {
+        val p = page("Первое предложение. Второе! Третье")
+        val sentences = p.sentences().map { p.text(it) }
+        assertEquals(listOf("Первое предложение.", "Второе!", "Третье"), sentences)
+    }
+
+    @Test
+    fun findsByPattern() {
+        val p = page("mail me: a.b@example.com now")
+        assertEquals(1, p.findRegex(Regex("""[\w.+-]+@[\w-]+\.[\w.-]+""")).size)
+    }
+}

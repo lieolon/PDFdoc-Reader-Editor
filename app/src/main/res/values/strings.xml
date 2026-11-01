@@ -556,4 +556,13 @@
     <string name="folder_name">Name</string>
     <string name="folder_delete">Delete</string>
     <string name="folder_none">No folders yet</string>
+    <string name="filter_no_shadows">No shadows</string>
+    <string name="scan_mode_document">Document</string>
+    <string name="scan_mode_id">ID card</string>
+    <string name="scan_mode_book">Book</string>
+    <string name="scan_auto">Auto</string>
+    <string name="scan_auto_hint">Hold still: the photo is taken automatically</string>
+    <string name="scan_id_front">Photograph the front side</string>
+    <string name="scan_id_back">Now the back side</string>
+    <string name="scan_book_hint">Photograph an open spread: it will be split into two pages</string>
 </resources>

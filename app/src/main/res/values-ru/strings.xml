@@ -556,4 +556,13 @@
     <string name="folder_name">Название</string>
     <string name="folder_delete">Удалить</string>
     <string name="folder_none">Папок пока нет</string>
+    <string name="filter_no_shadows">Без теней</string>
+    <string name="scan_mode_document">Документ</string>
+    <string name="scan_mode_id">Паспорт/ID</string>
+    <string name="scan_mode_book">Книга</string>
+    <string name="scan_auto">Авто</string>
+    <string name="scan_auto_hint">Держите неподвижно — снимок сделается сам</string>
+    <string name="scan_id_front">Сфотографируйте лицевую сторону</string>
+    <string name="scan_id_back">Теперь оборотную сторону</string>
+    <string name="scan_book_hint">Снимите разворот — он разделится на две страницы</string>
 </resources>

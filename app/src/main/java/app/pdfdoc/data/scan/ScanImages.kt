@@ -48,6 +48,38 @@ object ScanImages {
 
     private const val DETECT_SIDE = 256
 
+    /** A4 at 300 dpi. */
+    const val ID_SHEET_WIDTH = 2480
+    const val ID_SHEET_HEIGHT = 3508
+
+    /** Front and back of an ID card at real size (85.6 × 54 mm) on one A4 sheet. */
+    fun idSheet(front: Bitmap, back: Bitmap): Bitmap {
+        val sheet = Bitmap.createBitmap(ID_SHEET_WIDTH, ID_SHEET_HEIGHT, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(sheet)
+        canvas.drawColor(android.graphics.Color.WHITE)
+        val cardW = 1011f
+        val cardH = 638f
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        listOf(front to ID_SHEET_HEIGHT * 0.27f, back to ID_SHEET_HEIGHT * 0.62f).forEach { (card, centerY) ->
+            // Cards photographed upright are turned to landscape.
+            val upright = if (card.height > card.width) rotateClockwise(card) else card
+            val k = minOf(cardW / upright.width, cardH / upright.height)
+            val w = upright.width * k
+            val h = upright.height * k
+            val left = (ID_SHEET_WIDTH - w) / 2
+            val top = centerY - h / 2
+            canvas.drawBitmap(upright, null, android.graphics.RectF(left, top, left + w, top + h), paint)
+        }
+        return sheet
+    }
+
+    /** Splits a photographed book spread at the middle into the left and right page. */
+    fun splitSpread(spread: Bitmap): Pair<Bitmap, Bitmap> {
+        val half = spread.width / 2
+        return Bitmap.createBitmap(spread, 0, 0, half, spread.height) to
+            Bitmap.createBitmap(spread, half, 0, spread.width - half, spread.height)
+    }
+
     fun rotateClockwise(source: Bitmap): Bitmap =
         Bitmap.createBitmap(source, 0, 0, source.width, source.height, Matrix().apply { postRotate(90f) }, true)
 

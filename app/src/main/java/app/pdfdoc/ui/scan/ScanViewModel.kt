@@ -44,6 +44,9 @@ import kotlinx.coroutines.withContext
 
 enum class ScanStep { CAMERA, CROP, REVIEW }
 
+/** DOCUMENT: one photo, one page. ID_CARD: front and back on one page. BOOK: a spread split into two pages. */
+enum class ScanMode { DOCUMENT, ID_CARD, BOOK }
+
 /** A captured page: the original photo, the chosen outline and the straightened result. */
 data class ScanPage(val id: Long, val raw: File, val width: Int, val height: Int, val quad: Quad, val processed: File)
 
@@ -56,6 +59,10 @@ data class ScanUiState(
     val crop: CropState? = null,
     val filter: ScanFilter = ScanFilter.ENHANCED,
     val recognize: Boolean = true,
+    val mode: ScanMode = ScanMode.DOCUMENT,
+    val autoCapture: Boolean = false,
+    /** Straightened front side of an ID card, waiting for the back. */
+    val idFront: File? = null,
     val busy: Boolean = false,
     @StringRes val progressText: Int? = null,
     val progressArgs: List<Int> = emptyList(),
@@ -161,13 +168,46 @@ class ScanViewModel @Inject constructor(
     fun applyCrop() = busy {
         val crop = state.value.crop ?: return@busy
         val source = BitmapFactory.decodeFile(crop.raw.absolutePath) ?: return@busy
-        val processed = ScanImages.saveJpeg(ScanImages.warp(source, crop.quad), File(dir, "page-${UUID.randomUUID()}.jpg"))
-        _state.update { s ->
-            val page = ScanPage(nextId++, crop.raw, crop.width, crop.height, crop.quad, processed)
-            val pages = crop.replaceIndex?.let { i -> s.pages.toMutableList().also { it[i] = page } } ?: (s.pages + page)
-            s.copy(step = ScanStep.REVIEW, pages = pages, crop = null)
+        val warped = ScanImages.warp(source, crop.quad)
+        val mode = if (crop.replaceIndex != null) ScanMode.DOCUMENT else state.value.mode
+        when (mode) {
+            ScanMode.ID_CARD -> {
+                val front = state.value.idFront
+                if (front == null) {
+                    val file = ScanImages.saveJpeg(warped, File(dir, "id-${UUID.randomUUID()}.jpg"))
+                    _state.update { it.copy(idFront = file, crop = null, step = ScanStep.CAMERA) }
+                    _events.send(ScanEvent.Message(R.string.scan_id_back))
+                    return@busy
+                }
+                val frontBitmap = BitmapFactory.decodeFile(front.absolutePath) ?: return@busy
+                val sheet = ScanImages.saveJpeg(ScanImages.idSheet(frontBitmap, warped), File(dir, "page-${UUID.randomUUID()}.jpg"))
+                _state.update { s ->
+                    val page = ScanPage(nextId++, sheet, ScanImages.ID_SHEET_WIDTH, ScanImages.ID_SHEET_HEIGHT, Quad.full(ScanImages.ID_SHEET_WIDTH, ScanImages.ID_SHEET_HEIGHT), sheet)
+                    s.copy(step = ScanStep.REVIEW, pages = s.pages + page, crop = null, idFront = null)
+                }
+            }
+            ScanMode.BOOK -> {
+                val (left, right) = ScanImages.splitSpread(warped)
+                val pages = listOf(left, right).map { half ->
+                    val file = ScanImages.saveJpeg(half, File(dir, "page-${UUID.randomUUID()}.jpg"))
+                    ScanPage(nextId++, file, half.width, half.height, Quad.full(half.width, half.height), file)
+                }
+                _state.update { s -> s.copy(step = ScanStep.REVIEW, pages = s.pages + pages, crop = null) }
+            }
+            ScanMode.DOCUMENT -> {
+                val processed = ScanImages.saveJpeg(warped, File(dir, "page-${UUID.randomUUID()}.jpg"))
+                _state.update { s ->
+                    val page = ScanPage(nextId++, crop.raw, crop.width, crop.height, crop.quad, processed)
+                    val pages = crop.replaceIndex?.let { i -> s.pages.toMutableList().also { it[i] = page } } ?: (s.pages + page)
+                    s.copy(step = ScanStep.REVIEW, pages = pages, crop = null)
+                }
+            }
         }
     }
+
+    fun setMode(mode: ScanMode) = _state.update { it.copy(mode = mode, idFront = null) }
+
+    fun setAutoCapture(on: Boolean) = _state.update { it.copy(autoCapture = on) }
 
     /** Back from cropping: a re-crop returns to the review, a new photo is discarded. */
     fun cancelCrop() = _state.update {

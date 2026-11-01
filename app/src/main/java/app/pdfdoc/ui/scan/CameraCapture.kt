@@ -67,6 +67,11 @@ import app.pdfdoc.R
 @Composable
 fun CameraCapture(
     pageCount: Int,
+    mode: ScanMode,
+    autoCapture: Boolean,
+    waitingForBack: Boolean,
+    onMode: (ScanMode) -> Unit,
+    onAutoCapture: (Boolean) -> Unit,
     onCaptured: (Bitmap) -> Unit,
     onImport: (List<Uri>) -> Unit,
     onDone: () -> Unit,
@@ -88,9 +93,11 @@ fun CameraCapture(
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         if (granted) {
-            CameraPreview(onCaptured = onCaptured, pageCount = pageCount, onDone = onDone, onGallery = {
-                gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-            })
+            CameraPreview(
+                onCaptured = onCaptured, pageCount = pageCount, onDone = onDone,
+                onGallery = { gallery.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                mode = mode, autoCapture = autoCapture, waitingForBack = waitingForBack, onMode = onMode, onAutoCapture = onAutoCapture,
+            )
         } else {
             Column(
                 Modifier.fillMaxSize().padding(32.dp),
@@ -127,7 +134,17 @@ fun CameraCapture(
 }
 
 @Composable
-private fun CameraPreview(onCaptured: (Bitmap) -> Unit, pageCount: Int, onDone: () -> Unit, onGallery: () -> Unit) {
+private fun CameraPreview(
+    onCaptured: (Bitmap) -> Unit,
+    pageCount: Int,
+    onDone: () -> Unit,
+    onGallery: () -> Unit,
+    mode: ScanMode,
+    autoCapture: Boolean,
+    waitingForBack: Boolean,
+    onMode: (ScanMode) -> Unit,
+    onAutoCapture: (Boolean) -> Unit,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val previewView = remember { PreviewView(context).apply { scaleType = PreviewView.ScaleType.FIT_CENTER } }
@@ -136,6 +153,53 @@ private fun CameraPreview(onCaptured: (Bitmap) -> Unit, pageCount: Int, onDone: 
     }
     var flash by remember { mutableStateOf(false) }
     var capturing by remember { mutableStateOf(false) }
+    val currentAuto by androidx.compose.runtime.rememberUpdatedState(autoCapture)
+    var steady by remember { mutableStateOf(0f) }
+    fun capture() {
+        if (capturing) return
+        capturing = true
+        imageCapture.takePicture(
+            ContextCompat.getMainExecutor(context),
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    val bitmap = image.toUprightBitmap()
+                    image.close()
+                    capturing = false
+                    onCaptured(bitmap)
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    capturing = false
+                }
+            },
+        )
+    }
+    // Automatic capture: shoot once the detected page outline stays still for a moment.
+    val analysis = remember {
+        androidx.camera.core.ImageAnalysis.Builder()
+            .setBackpressureStrategy(androidx.camera.core.ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setOutputImageFormat(androidx.camera.core.ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+            .build()
+    }
+    val stability = remember { SteadyPage() }
+    DisposableEffect(analysis) {
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        analysis.setAnalyzer(executor) { image ->
+            val level = if (currentAuto && !capturing) runCatching { stability.update(image.toBitmap()) }.getOrDefault(0f) else 0f
+            image.close()
+            ContextCompat.getMainExecutor(context).execute {
+                steady = level
+                if (level >= 1f && currentAuto) {
+                    stability.reset()
+                    capture()
+                }
+            }
+        }
+        onDispose {
+            analysis.clearAnalyzer()
+            executor.shutdown()
+        }
+    }
 
     DisposableEffect(lifecycleOwner) {
         val future = ProcessCameraProvider.getInstance(context)
@@ -144,7 +208,8 @@ private fun CameraPreview(onCaptured: (Bitmap) -> Unit, pageCount: Int, onDone: 
             val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
             runCatching {
                 provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+                runCatching { provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture, analysis) }
+                    .getOrElse { provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture) }
             }
         }, ContextCompat.getMainExecutor(context))
         onDispose { runCatching { future.get().unbindAll() } }
@@ -153,6 +218,43 @@ private fun CameraPreview(onCaptured: (Bitmap) -> Unit, pageCount: Int, onDone: 
 
     Box(Modifier.fillMaxSize()) {
         AndroidView({ previewView }, Modifier.fillMaxSize())
+        Column(
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 120.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val hint = when {
+                waitingForBack -> R.string.scan_id_back
+                mode == ScanMode.ID_CARD -> R.string.scan_id_front
+                mode == ScanMode.BOOK -> R.string.scan_book_hint
+                autoCapture -> R.string.scan_auto_hint
+                else -> null
+            }
+            hint?.let {
+                Text(
+                    stringResource(it),
+                    color = Color.White,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.background(Color.Black.copy(alpha = 0.55f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+            if (autoCapture && steady > 0f) {
+                androidx.compose.material3.LinearProgressIndicator(progress = { steady }, modifier = Modifier.padding(top = 6.dp).size(width = 160.dp, height = 4.dp))
+            }
+            Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(ScanMode.DOCUMENT to R.string.scan_mode_document, ScanMode.ID_CARD to R.string.scan_mode_id, ScanMode.BOOK to R.string.scan_mode_book).forEach { (m, label) ->
+                    androidx.compose.material3.FilterChip(
+                        selected = mode == m,
+                        onClick = { onMode(m) },
+                        label = { Text(stringResource(label), color = Color.White) },
+                    )
+                }
+                androidx.compose.material3.FilterChip(
+                    selected = autoCapture,
+                    onClick = { onAutoCapture(!autoCapture) },
+                    label = { Text(stringResource(R.string.scan_auto), color = Color.White) },
+                )
+            }
+        }
         IconButton(
             onClick = { flash = !flash },
             modifier = Modifier.align(Alignment.TopEnd).statusBarsPadding().padding(8.dp),
@@ -182,24 +284,7 @@ private fun CameraPreview(onCaptured: (Bitmap) -> Unit, pageCount: Int, onDone: 
                     .border(4.dp, Color.White, CircleShape)
                     .padding(8.dp)
                     .background(if (capturing) Color.Gray else Color.White, CircleShape)
-                    .clickable(enabled = !capturing) {
-                        capturing = true
-                        imageCapture.takePicture(
-                            ContextCompat.getMainExecutor(context),
-                            object : ImageCapture.OnImageCapturedCallback() {
-                                override fun onCaptureSuccess(image: ImageProxy) {
-                                    val bitmap = image.toUprightBitmap()
-                                    image.close()
-                                    capturing = false
-                                    onCaptured(bitmap)
-                                }
-
-                                override fun onError(exception: ImageCaptureException) {
-                                    capturing = false
-                                }
-                            },
-                        )
-                    },
+                    .clickable(enabled = !capturing) { capture() },
             )
             TextButton(onClick = onDone, enabled = pageCount > 0) {
                 Text(
@@ -217,4 +302,41 @@ private fun ImageProxy.toUprightBitmap(): Bitmap {
     val rotation = imageInfo.rotationDegrees
     if (rotation == 0) return bitmap
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, Matrix().apply { postRotate(rotation.toFloat()) }, true)
+}
+
+/**
+ * Tracks the page outline across camera frames. Returns progress towards a steady shot:
+ * 1 when the outline has stayed in place for several frames in a row.
+ */
+private class SteadyPage {
+    private var last: List<app.pdfdoc.domain.edit.Pt>? = null
+    private var count = 0
+
+    fun reset() {
+        last = null
+        count = 0
+    }
+
+    fun update(frame: Bitmap): Float {
+        val side = 200
+        val k = side.toFloat() / maxOf(frame.width, frame.height)
+        val small = Bitmap.createScaledBitmap(frame, (frame.width * k).toInt().coerceAtLeast(1), (frame.height * k).toInt().coerceAtLeast(1), true)
+        val pixels = IntArray(small.width * small.height)
+        small.getPixels(pixels, 0, small.width, 0, 0, small.width, small.height)
+        val quad = app.pdfdoc.domain.scan.EdgeDetector.detect(pixels, small.width, small.height)
+        if (quad == null) {
+            reset()
+            return 0f
+        }
+        val corners = quad.corners.map { app.pdfdoc.domain.edit.Pt(it.x / small.width, it.y / small.height) }
+        val previous = last
+        last = corners
+        val still = previous != null && corners.zip(previous).all { (a, b) -> app.pdfdoc.domain.edit.distance(a, b) < 0.015f }
+        count = if (still) count + 1 else 0
+        return (count / STEADY_FRAMES.toFloat()).coerceAtMost(1f)
+    }
+
+    private companion object {
+        const val STEADY_FRAMES = 8
+    }
 }

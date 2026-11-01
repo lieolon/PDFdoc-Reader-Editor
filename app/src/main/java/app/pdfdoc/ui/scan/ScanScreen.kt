@@ -138,6 +138,11 @@ fun ScanScreen(
         when (state.step) {
             ScanStep.CAMERA -> CameraCapture(
                 pageCount = state.pages.size,
+                mode = state.mode,
+                autoCapture = state.autoCapture,
+                waitingForBack = state.idFront != null,
+                onMode = viewModel::setMode,
+                onAutoCapture = viewModel::setAutoCapture,
                 onCaptured = viewModel::onCaptured,
                 onImport = viewModel::import,
                 onDone = viewModel::showReview,
@@ -380,6 +385,7 @@ private fun ReviewStep(state: ScanUiState, viewModel: ScanViewModel, snackbar: S
 private fun filterLabel(f: ScanFilter) = when (f) {
     ScanFilter.COLOR -> R.string.filter_color
     ScanFilter.ENHANCED -> R.string.filter_enhanced
+    ScanFilter.NO_SHADOWS -> R.string.filter_no_shadows
     ScanFilter.GRAYSCALE -> R.string.filter_gray
     ScanFilter.BLACK_WHITE -> R.string.filter_bw
 }

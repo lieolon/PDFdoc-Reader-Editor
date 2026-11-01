@@ -1,0 +1,8 @@
+A big free update:
+• Links, text selection, read aloud, reading mode, presentation, tabs
+• Comments with replies, eraser, smart pen, measuring, form fields
+• Redaction, digital signatures and their verification
+• Crop margins, table of contents, attachments, PDF/A
+• Compare PDFs, export to Excel, EPUB, HTML
+• Batch processing, folders, full-text search, fingerprint lock
+• Scanner: auto-capture, ID cards, books, shadow removal; 10 OCR languages
