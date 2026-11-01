@@ -1,1 +1,1 @@
-PDFdoc — PDF reader & editor
+PDFdoc: Reader & Editor
