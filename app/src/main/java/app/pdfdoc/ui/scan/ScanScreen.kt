@@ -32,6 +32,8 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -118,12 +120,19 @@ fun ScanScreen(
     }
 
     val exit = { if (state.pages.isNotEmpty()) confirmExit = true else onBack() }
+    // "Photos to PDF" starts on its own screen instead of the camera; a cancelled picker leaves the user there.
+    var useCamera by rememberSaveable { mutableStateOf(!viewModel.fromImages) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
-        if (uris.isNotEmpty()) viewModel.import(uris) else if (state.pages.isEmpty()) onBack()
+        if (uris.isNotEmpty()) viewModel.import(uris)
     }
+    val pickImages = {
+        gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+    var pickerShown by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (viewModel.fromImages && state.pages.isEmpty()) {
-            gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        if (viewModel.fromImages && state.pages.isEmpty() && !pickerShown) {
+            pickerShown = true
+            pickImages()
         }
     }
     BackHandler {
@@ -136,7 +145,11 @@ fun ScanScreen(
 
     Box(Modifier.fillMaxSize()) {
         when (state.step) {
-            ScanStep.CAMERA -> CameraCapture(
+            ScanStep.CAMERA -> if (!useCamera && state.pages.isEmpty()) ImagesStart(
+                onPick = pickImages,
+                onCamera = { useCamera = true },
+                onBack = onBack,
+            ) else CameraCapture(
                 pageCount = state.pages.size,
                 mode = state.mode,
                 autoCapture = state.autoCapture,
@@ -167,6 +180,39 @@ fun ScanScreen(
             confirmButton = { TextButton(onClick = { confirmExit = false; onBack() }) { Text(stringResource(R.string.pages_discard)) } },
             dismissButton = { TextButton(onClick = { confirmExit = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ImagesStart(onPick: () -> Unit, onCamera: () -> Unit, onBack: () -> Unit) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.home_images_to_pdf)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                },
+            )
+        },
+    ) { padding ->
+        Column(
+            Modifier.fillMaxSize().padding(padding).padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(Icons.Default.PhotoLibrary, null, Modifier.size(72.dp), tint = MaterialTheme.colorScheme.primary)
+            Text(
+                stringResource(R.string.images_pick_hint),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.padding(vertical = 24.dp),
+            )
+            Button(onClick = onPick, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.images_pick)) }
+            OutlinedButton(onClick = onCamera, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Text(stringResource(R.string.images_use_camera))
+            }
+        }
     }
 }
 

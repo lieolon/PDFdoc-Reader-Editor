@@ -148,6 +148,9 @@
     <string name="scan_allow_camera">Разрешить камеру</string>
     <string name="scan_open_settings">Открыть настройки</string>
     <string name="scan_from_gallery">Из галереи</string>
+    <string name="images_pick_hint">Выберите фото в галерее: нажмите на каждый нужный снимок, затем «Готово» или «Добавить». Из них получатся страницы PDF.</string>
+    <string name="images_pick">Выбрать фото</string>
+    <string name="images_use_camera">Снять камерой</string>
     <string name="scan_flash">Вспышка</string>
     <string name="scan_done">Готово</string>
     <string name="scan_done_count">Готово (%1$d)</string>

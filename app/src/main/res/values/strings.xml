@@ -148,6 +148,9 @@
     <string name="scan_allow_camera">Allow camera</string>
     <string name="scan_open_settings">Open settings</string>
     <string name="scan_from_gallery">From gallery</string>
+    <string name="images_pick_hint">Pick photos in the gallery: tap each picture you need, then tap Done or Add. They will become pages of a PDF.</string>
+    <string name="images_pick">Choose photos</string>
+    <string name="images_use_camera">Use the camera instead</string>
     <string name="scan_flash">Flash</string>
     <string name="scan_done">Done</string>
     <string name="scan_done_count">Done (%1$d)</string>
