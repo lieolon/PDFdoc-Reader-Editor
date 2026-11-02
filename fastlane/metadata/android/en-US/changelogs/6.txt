@@ -1,0 +1,2 @@
+• Photos to PDF opens on its own screen with Choose photos and Use the camera buttons, so the next step is clear.
+• Closing the gallery no longer sends you back to the home screen; you can pick photos again.
