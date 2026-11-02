@@ -120,20 +120,13 @@ fun ScanScreen(
     }
 
     val exit = { if (state.pages.isNotEmpty()) confirmExit = true else onBack() }
-    // "Photos to PDF" starts on its own screen instead of the camera; a cancelled picker leaves the user there.
+    // "Photos to PDF" starts on its own screen, where the user chooses between the gallery and the camera.
     var useCamera by rememberSaveable { mutableStateOf(!viewModel.fromImages) }
     val gallery = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
         if (uris.isNotEmpty()) viewModel.import(uris)
     }
     val pickImages = {
         gallery.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-    }
-    var pickerShown by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (viewModel.fromImages && state.pages.isEmpty() && !pickerShown) {
-            pickerShown = true
-            pickImages()
-        }
     }
     BackHandler {
         when (state.step) {
