@@ -532,6 +532,8 @@
     <string name="picker_empty">No recent files yet. Choose PDFs in your files.</string>
     <string name="picker_browse">Choose in files…</string>
     <string name="picker_add">Add (%1$d)</string>
+    <string name="picker_open_title">Open a file</string>
+    <string name="picker_pdf_title">Choose a PDF</string>
     <string name="batch_operation">What to do</string>
     <string name="batch_note">Results are saved to the chosen folder; the original files are not changed.</string>
     <string name="batch_done">Done: %1$d</string>

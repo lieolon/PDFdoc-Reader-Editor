@@ -166,8 +166,14 @@ fun ToolsScreen(
     val htmlLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.HTML.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.HTML, it) } }
     val markdownLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.MARKDOWN.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.MARKDOWN, it) } }
     val epubLauncher = rememberCreateDocument(app.pdfdoc.data.convert.TextFormat.EPUB.mime) { uri -> uri?.let { viewModel.exportAs(app.pdfdoc.data.convert.TextFormat.EPUB, it) } }
-    val compareLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { other ->
-        if (other != null) onCompare(viewModel.uri, other)
+    var comparing by remember { mutableStateOf(false) }
+    if (comparing) {
+        app.pdfdoc.ui.common.PdfPickerSheet(
+            onDismiss = { comparing = false },
+            onPicked = { uris -> comparing = false; uris.firstOrNull()?.let { onCompare(viewModel.uri, it) } },
+            multiple = false,
+            title = R.string.picker_pdf_title,
+        )
     }
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) folderAction?.invoke(uri)
@@ -230,7 +236,7 @@ fun ToolsScreen(
                                         Tool.HTML -> htmlLauncher.launch("${viewModel.baseName}.html")
                                         Tool.MARKDOWN -> markdownLauncher.launch("${viewModel.baseName}.md")
                                         Tool.EPUB -> epubLauncher.launch("${viewModel.baseName}.epub")
-                                        Tool.COMPARE -> compareLauncher.launch(arrayOf("application/pdf"))
+                                        Tool.COMPARE -> comparing = true
                                         else -> active = tool
                                     }
                                 },

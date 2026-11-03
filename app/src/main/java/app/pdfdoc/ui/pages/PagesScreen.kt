@@ -4,8 +4,6 @@ import app.pdfdoc.ui.common.rememberCreateDocument
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -101,8 +99,14 @@ fun PagesScreen(
     val extractName = stringResource(R.string.pages_extract_name, state.name.removeSuffix(".pdf"))
 
     val extractLauncher = rememberCreateDocument("application/pdf") { uri -> uri?.let(viewModel::extractSelected) }
-    val insertLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(viewModel::insertFrom)
+    var inserting by remember { mutableStateOf(false) }
+    if (inserting) {
+        app.pdfdoc.ui.common.PdfPickerSheet(
+            onDismiss = { inserting = false },
+            onPicked = { uris -> inserting = false; uris.firstOrNull()?.let(viewModel::insertFrom) },
+            multiple = false,
+            title = R.string.picker_pdf_title,
+        )
     }
     val saveAsLauncher = rememberCreateDocument("application/pdf") { uri -> uri?.let(viewModel::saveAs) }
 
@@ -159,7 +163,7 @@ fun PagesScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.pages_insert_pdf)) },
                                 leadingIcon = { Icon(Icons.Default.PostAdd, null) },
-                                onClick = { menu = false; insertLauncher.launch(arrayOf("application/pdf")) },
+                                onClick = { menu = false; inserting = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.save_as)) },

@@ -1,10 +1,8 @@
 package app.pdfdoc.ui.home
 
 import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.activity.compose.BackHandler
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -94,11 +92,18 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val openLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let(onOpenFile)
-    }
-    val toolsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.prepareForTools(it, onTools) }
+    var picker by remember { mutableStateOf<HomePick?>(null) }
+    picker?.let { pick ->
+        app.pdfdoc.ui.common.PdfPickerSheet(
+            onDismiss = { picker = null },
+            onPicked = { uris ->
+                picker = null
+                uris.firstOrNull()?.let { if (pick == HomePick.OPEN) onOpenFile(it) else viewModel.prepareForTools(it, onTools) }
+            },
+            multiple = false,
+            title = if (pick == HomePick.OPEN) R.string.picker_open_title else R.string.picker_pdf_title,
+            mimeTypes = if (pick == HomePick.OPEN) app.pdfdoc.data.convert.ImportFormats.MIME_TYPES else arrayOf("application/pdf"),
+        )
     }
     var sortMenu by remember { mutableStateOf(false) }
     var searchFocused by remember { mutableStateOf(false) }
@@ -144,7 +149,7 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         QuickAction(Icons.Default.FolderOpen, stringResource(R.string.home_open), Modifier.weight(1f)) {
-                            openLauncher.launch(app.pdfdoc.data.convert.ImportFormats.MIME_TYPES)
+                            picker = HomePick.OPEN
                         }
                         QuickAction(Icons.Default.DocumentScanner, stringResource(R.string.home_scan), Modifier.weight(1f), onScan)
                     }
@@ -168,7 +173,7 @@ fun HomeScreen(
                     }
                 }
                 item {
-                    ToolsAction { toolsLauncher.launch(arrayOf("application/pdf")) }
+                    ToolsAction { picker = HomePick.TOOLS }
                 }
             }
             if (state.hasAnyDocuments) {
@@ -289,6 +294,9 @@ private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, on
         }
     }
 }
+
+/** What the file chooser on the home screen was opened for. */
+private enum class HomePick { OPEN, TOOLS }
 
 @Composable
 private fun ToolsAction(onClick: () -> Unit) {

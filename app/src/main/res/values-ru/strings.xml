@@ -532,6 +532,8 @@
     <string name="picker_empty">Недавних файлов пока нет. Выберите PDF в файлах.</string>
     <string name="picker_browse">Выбрать в файлах…</string>
     <string name="picker_add">Добавить (%1$d)</string>
+    <string name="picker_open_title">Открыть файл</string>
+    <string name="picker_pdf_title">Выберите PDF</string>
     <string name="batch_operation">Что сделать</string>
     <string name="batch_note">Результаты сохраняются в выбранную папку, исходные файлы не меняются.</string>
     <string name="batch_done">Готово: %1$d</string>

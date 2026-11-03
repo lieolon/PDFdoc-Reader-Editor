@@ -61,25 +61,32 @@ class RecentPdfsViewModel @Inject constructor(documents: DocumentRepository) : V
 }
 
 /**
- * Chooses PDFs for a multi-file tool: recent library files first, the system file picker only on request.
+ * Chooses files: recent library files first, the system file picker only on request.
  * The system picker has no cancel button of its own, so the user comes back here and can always close the sheet.
+ * With [multiple] off, tapping a recent file picks it at once.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfPickerSheet(
     onDismiss: () -> Unit,
     onPicked: (List<Uri>) -> Unit,
+    multiple: Boolean = true,
+    title: Int = R.string.picker_title,
+    mimeTypes: Array<String> = arrayOf("application/pdf"),
     viewModel: RecentPdfsViewModel = hiltViewModel(),
 ) {
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val chosen = remember { mutableStateListOf<String>() }
-    val files = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    val many = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) onPicked(uris)
+    }
+    val one = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { onPicked(listOf(it)) }
     }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.navigationBarsPadding()) {
             Text(
-                stringResource(R.string.picker_title),
+                stringResource(title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
@@ -100,12 +107,18 @@ fun PdfPickerSheet(
                 LazyColumn(Modifier.heightIn(max = 360.dp)) {
                     items(recent, key = { it.id }) { doc ->
                         val checked = doc.uri in chosen
-                        RecentRow(doc, checked) { if (checked) chosen.remove(doc.uri) else chosen.add(doc.uri) }
+                        RecentRow(doc, checked.takeIf { multiple }) {
+                            when {
+                                !multiple -> onPicked(listOf(Uri.parse(doc.uri)))
+                                checked -> chosen.remove(doc.uri)
+                                else -> chosen.add(doc.uri)
+                            }
+                        }
                     }
                 }
             }
             TextButton(
-                onClick = { files.launch(arrayOf("application/pdf")) },
+                onClick = { if (multiple) many.launch(mimeTypes) else one.launch(mimeTypes) },
                 modifier = Modifier.padding(horizontal = 12.dp),
             ) {
                 Icon(Icons.Default.FolderOpen, null)
@@ -116,12 +129,14 @@ fun PdfPickerSheet(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cancel)) }
-                Button(
-                    onClick = { onPicked(chosen.map(Uri::parse)) },
-                    enabled = chosen.isNotEmpty(),
-                    modifier = Modifier.weight(1f),
-                ) {
-                    Text(stringResource(R.string.picker_add, chosen.size))
+                if (multiple) {
+                    Button(
+                        onClick = { onPicked(chosen.map(Uri::parse)) },
+                        enabled = chosen.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.picker_add, chosen.size))
+                    }
                 }
             }
         }
@@ -129,7 +144,8 @@ fun PdfPickerSheet(
 }
 
 @Composable
-private fun RecentRow(doc: PdfDocument, checked: Boolean, onToggle: () -> Unit) {
+/** [checked] is null for single choice, where the row opens the file instead of ticking it. */
+private fun RecentRow(doc: PdfDocument, checked: Boolean?, onToggle: () -> Unit) {
     val thumb by rememberFileBitmap(doc.thumbnailPath)
     ListItem(
         headlineContent = { Text(doc.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -144,7 +160,7 @@ private fun RecentRow(doc: PdfDocument, checked: Boolean, onToggle: () -> Unit) 
                 }
             }
         },
-        trailingContent = { Checkbox(checked = checked, onCheckedChange = null) },
+        trailingContent = { checked?.let { Checkbox(checked = it, onCheckedChange = null) } },
         colors = ListItemDefaults.colors(containerColor = Color.Transparent),
         modifier = Modifier.clickable(onClick = onToggle),
     )
