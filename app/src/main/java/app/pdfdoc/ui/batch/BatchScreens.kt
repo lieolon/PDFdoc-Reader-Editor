@@ -196,7 +196,7 @@ fun BatchScreen(onBack: () -> Unit, viewModel: BatchViewModel = hiltViewModel())
     val state by viewModel.state.collectAsStateWithLifecycle()
     var text by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    val pick = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { viewModel.addFiles(it) }
+    var picking by remember { mutableStateOf(false) }
     val folder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let { viewModel.run(it, text, password) }
     }
@@ -218,7 +218,7 @@ fun BatchScreen(onBack: () -> Unit, viewModel: BatchViewModel = hiltViewModel())
                     },
                 )
             }
-            OutlinedButton(onClick = { pick.launch(arrayOf("application/pdf")) }, enabled = !state.running) { Text(stringResource(R.string.batch_add)) }
+            OutlinedButton(onClick = { picking = true }, enabled = !state.running) { Text(stringResource(R.string.batch_add)) }
             Text(stringResource(R.string.batch_operation), style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 4.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 BatchOperation.entries.forEach { op ->
@@ -254,6 +254,9 @@ fun BatchScreen(onBack: () -> Unit, viewModel: BatchViewModel = hiltViewModel())
                 }
             }
         }
+    }
+    if (picking) {
+        app.pdfdoc.ui.common.PdfPickerSheet(onDismiss = { picking = false }, onPicked = { picking = false; viewModel.addFiles(it) })
     }
 }
 
