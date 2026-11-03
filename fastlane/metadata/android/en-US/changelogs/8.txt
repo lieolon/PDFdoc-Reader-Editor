@@ -1,0 +1,2 @@
+• New file chooser: recent PDFs at hand, a Choose in files button and a clear Cancel, so you no longer have to pick a file to get back to the app.
+• Used in Open PDF, Tools, Batch processing, Merge PDF, document comparison and page insertion.
