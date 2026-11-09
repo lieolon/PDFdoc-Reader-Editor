@@ -183,6 +183,93 @@ class PdfDocumentTools @Inject constructor(
         }
     }
 
+    /**
+     * Places [perSheet] pages (2, 4, 6 or 9) on each sheet of [paper], in reading order.
+     * Comments and form values are drawn into the pages first, so they come along.
+     */
+    fun nUp(source: File, target: File, perSheet: Int, paper: PaperSize) {
+        val (cols, rows) = when (perSheet) { 2 -> 2 to 1; 6 -> 3 to 2; 9 -> 3 to 3; else -> 2 to 2 }
+        // Wide grids go on landscape sheets so each cell keeps a page-like shape.
+        val landscape = cols > rows
+        val sheetW = if (landscape) paper.height else paper.width
+        val sheetH = if (landscape) paper.width else paper.height
+        val flat = File(target.parentFile, "${target.name}.flat")
+        val input = if (renderCopies.build(source, flat, excludeOwn = false)) flat else source
+        val tmp = File(target.parentFile, "${target.name}.tmp")
+        try {
+            load(input).use { src ->
+                PDDocument().use { out ->
+                    val layer = com.tom_roush.pdfbox.multipdf.LayerUtility(out)
+                    val margin = 18f
+                    val gap = 10f
+                    val cellW = (sheetW - 2 * margin - (cols - 1) * gap) / cols
+                    val cellH = (sheetH - 2 * margin - (rows - 1) * gap) / rows
+                    (0 until src.numberOfPages).chunked(perSheet).forEach { group ->
+                        val sheet = com.tom_roush.pdfbox.pdmodel.PDPage(PDRectangle(sheetW, sheetH))
+                        out.addPage(sheet)
+                        PDPageContentStream(out, sheet).use { cs ->
+                            group.forEachIndexed { slot, index ->
+                                val form = layer.importPageAsForm(src, index)
+                                // Bounds of the page as it is shown (the form matrix applies its rotation).
+                                val b = form.bBox
+                                val m = form.matrix
+                                val corners = listOf(
+                                    m.transformPoint(b.lowerLeftX, b.lowerLeftY), m.transformPoint(b.upperRightX, b.lowerLeftY),
+                                    m.transformPoint(b.lowerLeftX, b.upperRightY), m.transformPoint(b.upperRightX, b.upperRightY),
+                                )
+                                val minX = corners.minOf { it.x }
+                                val minY = corners.minOf { it.y }
+                                val w = corners.maxOf { it.x } - minX
+                                val h = corners.maxOf { it.y } - minY
+                                val scale = min(cellW / w, cellH / h)
+                                val col = slot % cols
+                                val row = slot / cols
+                                val cellX = margin + col * (cellW + gap)
+                                val cellY = sheetH - margin - (row + 1) * cellH - row * gap
+                                val x = cellX + (cellW - w * scale) / 2 - minX * scale
+                                val y = cellY + (cellH - h * scale) / 2 - minY * scale
+                                cs.saveGraphicsState()
+                                cs.transform(Matrix(scale, 0f, 0f, scale, x, y))
+                                cs.drawForm(form)
+                                cs.restoreGraphicsState()
+                                // Thin frame, so cut sheets stay readable.
+                                cs.setStrokingColor(0.8f, 0.8f, 0.8f)
+                                cs.setLineWidth(0.4f)
+                                cs.addRect(cellX + (cellW - w * scale) / 2, cellY + (cellH - h * scale) / 2, w * scale, h * scale)
+                                cs.stroke()
+                            }
+                        }
+                    }
+                    out.save(tmp)
+                }
+            }
+        } finally {
+            flat.delete()
+        }
+        if (!tmp.renameTo(target)) {
+            tmp.copyTo(target, overwrite = true)
+            tmp.delete()
+        }
+    }
+
+    /**
+     * Zero-based page ranges for splitting along the top-level chapters of the table of contents.
+     * Pages before the first chapter form their own part. Empty when the document has no chapters.
+     */
+    fun chapterRanges(source: File): List<Pair<String, IntRange>> {
+        val pageCount = load(source).use { it.numberOfPages }
+        val starts = outline(source).filter { it.level == 0 && it.page >= 0 }
+            .distinctBy { it.page }.sortedBy { it.page }
+        if (starts.isEmpty()) return emptyList()
+        val parts = mutableListOf<Pair<String, IntRange>>()
+        if (starts.first().page > 0) parts += "" to (0 until starts.first().page)
+        starts.forEachIndexed { i, entry ->
+            val end = (starts.getOrNull(i + 1)?.page ?: pageCount) - 1
+            if (end >= entry.page) parts += entry.title to (entry.page..end)
+        }
+        return parts
+    }
+
     /** Draws annotations and form values into the pages so they can no longer be changed. */
     fun flatten(source: File, target: File): Boolean {
         if (renderCopies.build(source, target, excludeOwn = false)) return true

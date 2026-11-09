@@ -139,9 +139,9 @@ class PagesViewModel @Inject constructor(
     /** Position for inserted pages: after the last selected page, or at the end. */
     private fun insertPosition() = state.value.selected.maxOrNull()?.plus(1) ?: state.value.pageCount
 
-    fun insertBlank() {
+    fun insertBlank(paper: app.pdfdoc.domain.pdf.Paper = app.pdfdoc.domain.pdf.Paper.BLANK) {
         val at = insertPosition()
-        mutate { ops.insertBlankPage(it, it, at) }
+        mutate { ops.insertBlankPage(it, it, at, paper) }
     }
 
     fun insertFrom(other: Uri) {

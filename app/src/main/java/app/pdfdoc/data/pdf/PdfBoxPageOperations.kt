@@ -1,11 +1,13 @@
 package app.pdfdoc.data.pdf
 
 import app.pdfdoc.domain.pdf.PageOperations
+import app.pdfdoc.domain.pdf.Paper
 import com.tom_roush.pdfbox.cos.COSDictionary
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.multipdf.PDFMergerUtility
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
 import java.io.File
 import java.io.IOException
 import javax.inject.Inject
@@ -59,10 +61,11 @@ class PdfBoxPageOperations @Inject constructor() : PageOperations {
         reorder(doc, order)
     }
 
-    override fun insertBlankPage(source: File, target: File, at: Int) = edit(source, target) { doc ->
+    override fun insertBlankPage(source: File, target: File, at: Int, paper: Paper) = edit(source, target) { doc ->
         val neighbour = doc.getPage((at - 1).coerceIn(0, doc.numberOfPages - 1))
         val blank = PDPage(neighbour.mediaBox).apply { rotation = neighbour.rotation }
         doc.addPage(blank)
+        if (paper != Paper.BLANK) rule(doc, blank, paper)
         val order = (0 until doc.numberOfPages - 1).toMutableList()
         order.add(at.coerceIn(0, order.size), doc.numberOfPages - 1)
         reorder(doc, order)
@@ -80,6 +83,62 @@ class PdfBoxPageOperations @Inject constructor() : PageOperations {
                 val order = (0 until before).toMutableList()
                 order.addAll(at.coerceIn(0, before), added)
                 reorder(doc, order)
+            }
+        }
+    }
+
+    /** Draws notebook ruling in light blue-grey, in display space so rotated neighbours look right. */
+    private fun rule(doc: PDDocument, page: PDPage, paper: Paper) {
+        val g = PageGeometry.of(page)
+        val w = g.displayWidth
+        val h = g.displayHeight
+        val margin = 36f
+        PDPageContentStream(doc, page).use { cs ->
+            cs.transform(g.matrix())
+            cs.setStrokingColor(0.62f, 0.70f, 0.80f)
+            cs.setNonStrokingColor(0.55f, 0.62f, 0.72f)
+            cs.setLineWidth(0.5f)
+            when (paper) {
+                Paper.LINED -> {
+                    var y = margin + 36f
+                    while (y < h - margin) { cs.moveTo(margin, y); cs.lineTo(w - margin, y); y += 22f }
+                    cs.stroke()
+                    // Red margin line, like a school notebook.
+                    cs.setStrokingColor(0.90f, 0.55f, 0.55f)
+                    cs.moveTo(margin + 48f, margin); cs.lineTo(margin + 48f, h - margin)
+                    cs.stroke()
+                }
+                Paper.SQUARED -> {
+                    val step = 14.17f // 5 mm
+                    var x = margin
+                    while (x <= w - margin) { cs.moveTo(x, margin); cs.lineTo(x, h - margin); x += step }
+                    var y = margin
+                    while (y <= h - margin) { cs.moveTo(margin, y); cs.lineTo(w - margin, y); y += step }
+                    cs.stroke()
+                }
+                Paper.DOTTED -> {
+                    val step = 14.17f
+                    var y = margin
+                    while (y <= h - margin) {
+                        var x = margin
+                        while (x <= w - margin) { cs.addRect(x - 0.6f, y - 0.6f, 1.2f, 1.2f); x += step }
+                        y += step
+                    }
+                    cs.fill()
+                }
+                Paper.MUSIC -> {
+                    // Staves of five lines, 7 pt apart, with room between them.
+                    var top = margin + 24f
+                    while (top + 28f < h - margin) {
+                        for (i in 0 until 5) {
+                            val y = top + i * 7f
+                            cs.moveTo(margin, y); cs.lineTo(w - margin, y)
+                        }
+                        top += 64f
+                    }
+                    cs.stroke()
+                }
+                Paper.BLANK -> Unit
             }
         }
     }

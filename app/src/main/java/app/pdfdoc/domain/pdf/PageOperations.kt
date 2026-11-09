@@ -17,9 +17,12 @@ interface PageOperations {
     /** Inserts a copy of page [index] right after it. */
     fun duplicatePage(source: File, target: File, index: Int)
 
-    /** Inserts an empty page at [at], sized like the page before it. */
-    fun insertBlankPage(source: File, target: File, at: Int)
+    /** Inserts an empty page at [at], sized like the page before it, ruled as [paper]. */
+    fun insertBlankPage(source: File, target: File, at: Int, paper: Paper = Paper.BLANK)
 
     /** Inserts every page of [other] at position [at]. */
     fun insertDocument(source: File, other: File, target: File, at: Int)
 }
+
+/** Ruling of an inserted page, for taking notes by hand. */
+enum class Paper { BLANK, LINED, SQUARED, DOTTED, MUSIC }

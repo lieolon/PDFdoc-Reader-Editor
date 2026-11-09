@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.AlertDialog
+import app.pdfdoc.domain.pdf.Paper
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -109,6 +111,28 @@ fun PagesScreen(
         )
     }
     val saveAsLauncher = rememberCreateDocument("application/pdf") { uri -> uri?.let(viewModel::saveAs) }
+    var choosingPaper by remember { mutableStateOf(false) }
+    if (choosingPaper) {
+        AlertDialog(
+            onDismissRequest = { choosingPaper = false },
+            title = { Text(stringResource(R.string.pages_insert_blank)) },
+            text = {
+                Column {
+                    Paper.entries.forEach { paper ->
+                        Text(
+                            stringResource(paper.title()),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { choosingPaper = false; viewModel.insertBlank(paper) }
+                                .padding(vertical = 12.dp),
+                        )
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosingPaper = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 
     LaunchedEffect(Unit) {
         viewModel.events.collect { event ->
@@ -158,7 +182,7 @@ fun PagesScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.pages_insert_blank)) },
                                 leadingIcon = { Icon(Icons.Default.NoteAdd, null) },
-                                onClick = { menu = false; viewModel.insertBlank() },
+                                onClick = { menu = false; choosingPaper = true },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.pages_insert_pdf)) },
@@ -381,4 +405,12 @@ private fun PageThumb(
             modifier = Modifier.padding(top = 4.dp),
         )
     }
+}
+
+private fun Paper.title() = when (this) {
+    Paper.BLANK -> R.string.paper_blank
+    Paper.LINED -> R.string.paper_lined
+    Paper.SQUARED -> R.string.paper_squared
+    Paper.DOTTED -> R.string.paper_dotted
+    Paper.MUSIC -> R.string.paper_music
 }

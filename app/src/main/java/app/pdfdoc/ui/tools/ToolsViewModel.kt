@@ -56,6 +56,7 @@ sealed interface DocumentJob {
     data class CropMargins(val top: Float, val right: Float, val bottom: Float, val left: Float) : DocumentJob
     data object AutoCrop : DocumentJob
     data class Resize(val paper: app.pdfdoc.data.pdf.PaperSize) : DocumentJob
+    data class NUp(val perSheet: Int, val paper: app.pdfdoc.data.pdf.PaperSize) : DocumentJob
     data object Flatten : DocumentJob
     data class Properties(val properties: app.pdfdoc.data.pdf.DocProperties) : DocumentJob
     data class Sanitize(val options: app.pdfdoc.data.pdf.SanitizeOptions) : DocumentJob
@@ -70,6 +71,12 @@ sealed interface DocumentJob {
         val location: String,
         val visiblePage: Int,
     ) : DocumentJob
+}
+
+sealed interface SplitMode {
+    data class Ranges(val ranges: List<IntRange>) : SplitMode
+    data class BySize(val maxBytes: Long) : SplitMode
+    data object ByChapters : SplitMode
 }
 
 enum class RedactPattern(val regex: Regex) {
@@ -197,6 +204,7 @@ class ToolsViewModel @Inject constructor(
                         message = ToolsEvent.Message(R.string.tool_crop_auto_done, listOf(n.toString()))
                     }
                     is DocumentJob.Resize -> docTools.resizePages(source, out, job.paper)
+                    is DocumentJob.NUp -> docTools.nUp(source, out, job.perSheet, job.paper)
                     DocumentJob.Flatten -> if (!docTools.flatten(source, out)) message = ToolsEvent.Message(R.string.tool_flatten_nothing)
                     is DocumentJob.Properties -> docTools.setProperties(source, out, job.properties)
                     is DocumentJob.Sanitize -> docTools.sanitize(source, out, job.options)
@@ -334,24 +342,67 @@ class ToolsViewModel @Inject constructor(
     // endregion
 
     /** Splits into files written into the folder [tree]. */
-    fun split(ranges: List<IntRange>, tree: Uri) {
+    fun split(mode: SplitMode, tree: Uri) {
         val source = working ?: return
         launchBusy {
             val folder = DocumentFile.fromTreeUri(context, tree) ?: error("folder")
-            ranges.forEachIndexed { i, range ->
-                progress(R.string.tools_progress_file, i + 1, ranges.size)
+            val parts: List<Pair<String, IntRange>> = when (mode) {
+                is SplitMode.Ranges -> mode.ranges.map { "" to it }
+                is SplitMode.BySize -> sizeRanges(source, mode.maxBytes).map { "" to it }
+                SplitMode.ByChapters -> docTools.chapterRanges(source)
+            }
+            if (parts.isEmpty()) {
+                _events.send(ToolsEvent.Message(R.string.tool_split_no_chapters))
+                return@launchBusy
+            }
+            parts.forEachIndexed { i, (title, range) ->
+                progress(R.string.tools_progress_file, i + 1, parts.size)
                 val out = files.newWorkFile()
                 try {
                     ops.extractPages(source, out, range.toList())
-                    val label = if (range.first == range.last) "${range.first + 1}" else "${range.first + 1}-${range.last + 1}"
+                    val pages = if (range.first == range.last) "${range.first + 1}" else "${range.first + 1}-${range.last + 1}"
+                    val chapter = title.replace(Regex("""[\\/:*?"<>|\n\r]+"""), " ").trim().take(60)
+                    val label = if (chapter.isEmpty()) pages else "${i + 1}. $chapter"
                     val file = folder.createFile("application/pdf", "$baseName ($label)") ?: error("create")
                     docs.save(out, file.uri, uri)
                 } finally {
                     out.delete()
                 }
             }
-            _events.send(ToolsEvent.Message(R.string.tool_split_done, listOf(ranges.size.toString())))
+            _events.send(ToolsEvent.Message(R.string.tool_split_done, listOf(parts.size.toString())))
         }
+    }
+
+    /**
+     * Consecutive ranges whose files stay under [maxBytes]. Checks the real file size of candidate parts,
+     * since pages share fonts and images, and finds the longest fitting part by binary search.
+     * A single page larger than the limit is a part of its own.
+     */
+    private fun sizeRanges(source: File, maxBytes: Long): List<IntRange> {
+        val count = ops.pageCount(source)
+        val probe = files.newWorkFile()
+        val ranges = mutableListOf<IntRange>()
+        fun fits(range: IntRange): Boolean {
+            ops.extractPages(source, probe, range.toList())
+            return probe.length() <= maxBytes
+        }
+        try {
+            var start = 0
+            while (start < count) {
+                progress(R.string.tool_split_measuring, start + 1, count)
+                var lo = start
+                var hi = count - 1
+                while (lo < hi) {
+                    val mid = (lo + hi + 1) / 2
+                    if (fits(start..mid)) lo = mid else hi = mid - 1
+                }
+                ranges += start..lo
+                start = lo + 1
+            }
+        } finally {
+            probe.delete()
+        }
+        return ranges
     }
 
     fun exportText(target: Uri) {

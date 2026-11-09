@@ -578,4 +578,20 @@
     <string name="scan_id_front">Photograph the front side</string>
     <string name="scan_id_back">Now the back side</string>
     <string name="scan_book_hint">Photograph an open spread: it will be split into two pages</string>
+    <string name="paper_blank">Blank</string>
+    <string name="paper_lined">Lined</string>
+    <string name="paper_squared">Squared</string>
+    <string name="paper_dotted">Dotted</string>
+    <string name="paper_music">Music staves</string>
+    <string name="tool_nup">Pages per sheet</string>
+    <string name="tool_nup_desc">Print 2, 4, 6 or 9 pages on one sheet</string>
+    <string name="tool_nup_count">Pages on a sheet</string>
+    <string name="tool_nup_paper">Sheet size</string>
+    <string name="tool_nup_hint">Pages go in reading order. Comments and filled-in forms are drawn into the pages.</string>
+    <string name="tool_split_size">Parts no larger than</string>
+    <string name="tool_split_mb">MB</string>
+    <string name="tool_split_chapters">By chapters</string>
+    <string name="tool_split_chapters_hint">One file per top-level chapter of the table of contents</string>
+    <string name="tool_split_no_chapters">The document has no table of contents to split by</string>
+    <string name="tool_split_measuring">Measuring parts: page %1$d of %2$d</string>
 </resources>

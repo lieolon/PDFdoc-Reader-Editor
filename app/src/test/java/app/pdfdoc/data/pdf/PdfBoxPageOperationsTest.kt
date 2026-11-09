@@ -110,6 +110,17 @@ class PdfBoxPageOperationsTest {
         assertEquals(listOf(0, 10, 11, 1, 2), ids(file))
     }
 
+    @Test
+    fun insertBlankPage_ruledPaperHasContent() {
+        val file = pdf(2)
+        ops.insertBlankPage(file, file, 1, app.pdfdoc.domain.pdf.Paper.SQUARED)
+        PDDocument.load(file).use { doc ->
+            assertEquals(3, doc.numberOfPages)
+            assertEquals(true, doc.getPage(1).hasContents())
+            assertEquals(false, doc.getPage(0).hasContents())
+        }
+    }
+
     private fun pdf(pages: Int, offset: Int = 0): File {
         val file = tmp.newFile()
         PDDocument().use { doc ->

@@ -578,4 +578,20 @@
     <string name="scan_id_front">Сфотографируйте лицевую сторону</string>
     <string name="scan_id_back">Теперь оборотную сторону</string>
     <string name="scan_book_hint">Снимите разворот — он разделится на две страницы</string>
+    <string name="paper_blank">Пустая</string>
+    <string name="paper_lined">В линейку</string>
+    <string name="paper_squared">В клетку</string>
+    <string name="paper_dotted">В точку</string>
+    <string name="paper_music">Нотный стан</string>
+    <string name="tool_nup">Несколько страниц на листе</string>
+    <string name="tool_nup_desc">2, 4, 6 или 9 страниц на одном листе для печати</string>
+    <string name="tool_nup_count">Страниц на листе</string>
+    <string name="tool_nup_paper">Размер листа</string>
+    <string name="tool_nup_hint">Страницы идут по порядку чтения. Комментарии и заполненные формы впечатываются в страницы.</string>
+    <string name="tool_split_size">Части не больше</string>
+    <string name="tool_split_mb">МБ</string>
+    <string name="tool_split_chapters">По главам</string>
+    <string name="tool_split_chapters_hint">Один файл на каждую главу верхнего уровня из оглавления</string>
+    <string name="tool_split_no_chapters">В документе нет оглавления, по которому можно разделить</string>
+    <string name="tool_split_measuring">Подбираю части: страница %1$d из %2$d</string>
 </resources>

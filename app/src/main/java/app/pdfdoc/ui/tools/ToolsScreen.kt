@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.List
@@ -120,6 +121,7 @@ private enum class Tool(val icon: ImageVector, val title: Int, val description: 
     CROP(Icons.Default.Crop, R.string.tool_crop, R.string.tool_crop_desc, Section.PAGES),
     RESIZE(Icons.Default.AspectRatio, R.string.tool_resize, R.string.tool_resize_desc, Section.PAGES),
     SPLIT(Icons.AutoMirrored.Filled.CallSplit, R.string.tool_split, R.string.tool_split_desc, Section.PAGES),
+    NUP(Icons.Default.GridView, R.string.tool_nup, R.string.tool_nup_desc, Section.PAGES),
     PROPERTIES(Icons.Default.Info, R.string.tool_properties, R.string.tool_properties_desc, Section.DOCUMENT),
     OUTLINE(Icons.AutoMirrored.Filled.List, R.string.tool_outline, R.string.tool_outline_desc, Section.DOCUMENT),
     ATTACHMENTS(Icons.Default.AttachFile, R.string.tool_attachments, R.string.tool_attachments_desc, Section.DOCUMENT),
@@ -261,9 +263,9 @@ fun ToolsScreen(
                 Tool.WATERMARK -> WatermarkOptions(save, viewModel)
                 Tool.COMPRESS -> CompressOptions(viewModel.defaultCompress.collectAsStateWithLifecycle().value, save)
                 Tool.PROTECT -> ProtectOptions(state.protected, save)
-                Tool.SPLIT -> SplitOptions(state.pageCount) { ranges ->
+                Tool.SPLIT -> SplitOptions(state.pageCount) { mode ->
                     active = null
-                    folderAction = { viewModel.split(ranges, it) }
+                    folderAction = { viewModel.split(mode, it) }
                     folderLauncher.launch(null)
                 }
                 Tool.IMAGES -> ImagesOptions { format ->
@@ -281,6 +283,7 @@ fun ToolsScreen(
                 }
                 Tool.CROP -> CropOptions(save)
                 Tool.RESIZE -> ResizeOptions(save)
+                Tool.NUP -> NUpOptions(save)
                 Tool.PROPERTIES -> PropertiesOptions(viewModel, save)
                 Tool.OUTLINE -> OutlineOptions(viewModel, state.pageCount, save)
                 Tool.ATTACHMENTS -> AttachmentsOptions(viewModel)
@@ -560,43 +563,80 @@ private fun ProtectOptions(protected: Boolean, save: SaveActions) {
 }
 
 @Composable
-private fun SplitOptions(pageCount: Int, onSplit: (List<IntRange>) -> Unit) {
-    var byRanges by remember { mutableStateOf(false) }
+private fun SplitOptions(pageCount: Int, onSplit: (SplitMode) -> Unit) {
+    var mode by remember { mutableStateOf(SplitKind.EVERY) }
     var every by remember { mutableStateOf("1") }
     var ranges by remember { mutableStateOf("") }
+    var megabytes by remember { mutableStateOf("10") }
     SheetTitle(R.string.tool_split)
     Text(stringResource(R.string.tool_split_pages, pageCount), style = MaterialTheme.typography.bodyMedium)
-    Row(Modifier.fillMaxWidth().clickable { byRanges = false }, verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = !byRanges, onClick = { byRanges = false })
+    @Composable
+    fun Choice(kind: SplitKind, content: @Composable () -> Unit) {
+        Row(Modifier.fillMaxWidth().clickable { mode = kind }, verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = mode == kind, onClick = { mode = kind })
+            content()
+        }
+    }
+    Choice(SplitKind.EVERY) {
         Text(stringResource(R.string.tool_split_every))
         Spacer(Modifier.width(8.dp))
         OutlinedTextField(
             every, { v -> every = v.filter(Char::isDigit).take(4) },
             singleLine = true,
-            enabled = !byRanges,
+            enabled = mode == SplitKind.EVERY,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.width(88.dp),
         )
     }
-    Row(Modifier.fillMaxWidth().clickable { byRanges = true }, verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = byRanges, onClick = { byRanges = true })
-        Text(stringResource(R.string.tool_split_ranges))
+    Choice(SplitKind.RANGES) { Text(stringResource(R.string.tool_split_ranges)) }
+    if (mode == SplitKind.RANGES) {
+        OutlinedTextField(
+            ranges, { ranges = it },
+            placeholder = { Text("1-3, 4-6, 7-") },
+            isError = ranges.isNotEmpty() && PageRanges.parse(ranges, pageCount) == null,
+            supportingText = { Text(stringResource(R.string.tool_split_ranges_hint)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
-    val parsed = if (byRanges) PageRanges.parse(ranges, pageCount) else every.toIntOrNull()?.takeIf { it > 0 }?.let { PageRanges.every(it, pageCount) }
-    OutlinedTextField(
-        ranges, { ranges = it },
-        enabled = byRanges,
-        placeholder = { Text("1-3, 4-6, 7-") },
-        isError = byRanges && ranges.isNotEmpty() && parsed == null,
-        supportingText = { Text(stringResource(R.string.tool_split_ranges_hint)) },
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
-    parsed?.let { Text(stringResource(R.string.tool_split_result, it.size), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp)) }
-    Button(onClick = { parsed?.let(onSplit) }, enabled = parsed != null && parsed.isNotEmpty(), modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp)) {
+    Choice(SplitKind.SIZE) {
+        Text(stringResource(R.string.tool_split_size))
+        Spacer(Modifier.width(8.dp))
+        OutlinedTextField(
+            megabytes, { v -> megabytes = v.filter { it.isDigit() || it == '.' || it == ',' }.take(5) },
+            singleLine = true,
+            enabled = mode == SplitKind.SIZE,
+            suffix = { Text(stringResource(R.string.tool_split_mb)) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            modifier = Modifier.width(120.dp),
+        )
+    }
+    Choice(SplitKind.CHAPTERS) {
+        Column {
+            Text(stringResource(R.string.tool_split_chapters))
+            Text(stringResource(R.string.tool_split_chapters_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+    val parsed: SplitMode? = when (mode) {
+        SplitKind.EVERY -> every.toIntOrNull()?.takeIf { it > 0 }?.let { SplitMode.Ranges(PageRanges.every(it, pageCount)) }
+        SplitKind.RANGES -> PageRanges.parse(ranges, pageCount)?.let { SplitMode.Ranges(it) }
+        SplitKind.SIZE -> megabytes.replace(',', '.').toDoubleOrNull()?.takeIf { it >= 0.1 }
+            ?.let { SplitMode.BySize((it * 1024 * 1024).toLong()) }
+        SplitKind.CHAPTERS -> SplitMode.ByChapters
+    }
+    (parsed as? SplitMode.Ranges)?.let {
+        Text(stringResource(R.string.tool_split_result, it.ranges.size), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
+    }
+    Button(
+        onClick = { parsed?.let(onSplit) },
+        enabled = parsed != null && (parsed !is SplitMode.Ranges || parsed.ranges.isNotEmpty()),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 20.dp),
+    ) {
         Text(stringResource(R.string.tool_choose_folder))
     }
 }
+
+private enum class SplitKind { EVERY, RANGES, SIZE, CHAPTERS }
 
 @Composable
 private fun ImagesOptions(onExport: (ImageFormat) -> Unit) {

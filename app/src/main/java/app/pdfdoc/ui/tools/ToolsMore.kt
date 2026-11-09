@@ -129,6 +129,26 @@ internal fun ResizeOptions(save: SaveActions) {
 }
 
 @Composable
+internal fun NUpOptions(save: SaveActions) {
+    var perSheet by remember { mutableStateOf(2) }
+    var paper by remember { mutableStateOf(PaperSize.A4) }
+    SheetTitle(R.string.tool_nup)
+    Label(R.string.tool_nup_count)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(2, 4, 6, 9).forEach { n -> FilterChip(selected = perSheet == n, onClick = { perSheet = n }, label = { Text("$n") }) }
+    }
+    Label(R.string.tool_nup_paper)
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PaperSize.entries.forEach { p ->
+            FilterChip(selected = paper == p, onClick = { paper = p }, label = { Text(p.name.lowercase().replaceFirstChar(Char::uppercase)) })
+        }
+    }
+    Note(R.string.tool_nup_hint)
+    val job = DocumentJob.NUp(perSheet, paper)
+    SaveButtons(true, onCopy = { save.copy(job, "$perSheet-up") }, onReplace = { save.replace(job) })
+}
+
+@Composable
 internal fun SimpleJobOptions(title: Int, note: Int, job: DocumentJob, suffix: String, save: SaveActions) {
     SheetTitle(title)
     Text(stringResource(note), style = MaterialTheme.typography.bodyMedium)

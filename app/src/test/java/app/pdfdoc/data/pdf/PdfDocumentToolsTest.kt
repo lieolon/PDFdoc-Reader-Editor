@@ -174,4 +174,43 @@ class PdfDocumentToolsTest {
         assertTrue(comments.read(deleted).isEmpty())
         PDDocument.load(deleted).use { assertTrue(it.getPage(0).annotations.isEmpty()) }
     }
+
+    @Test
+    fun nUpPutsFourPagesOnEachSheet() {
+        val src = sample(pages = 5)
+        val out = tmp.newFile("nup.pdf")
+        tools.nUp(src, out, 4, PaperSize.A4)
+        PDDocument.load(out).use { doc ->
+            assertEquals(2, doc.numberOfPages)
+            assertEquals(595.28f, doc.getPage(0).mediaBox.width, 0.5f)
+            val text = com.tom_roush.pdfbox.text.PDFTextStripper().getText(doc)
+            (1..5).forEach { assertTrue("Page $it", text.contains("Page $it")) }
+        }
+    }
+
+    @Test
+    fun nUpTwoUpIsLandscape() {
+        val out = tmp.newFile("two.pdf")
+        tools.nUp(sample(pages = 2), out, 2, PaperSize.A4)
+        PDDocument.load(out).use { doc ->
+            assertEquals(1, doc.numberOfPages)
+            assertTrue(doc.getPage(0).mediaBox.width > doc.getPage(0).mediaBox.height)
+        }
+    }
+
+    @Test
+    fun chapterRangesFollowTopLevelOutline() {
+        val src = sample(pages = 6)
+        val withToc = tmp.newFile("toc.pdf")
+        tools.setOutline(src, withToc, listOf(
+            OutlineEntry("Intro", 1, 0), OutlineEntry("Detail", 2, 1), OutlineEntry("Main", 3, 0),
+        ))
+        val parts = tools.chapterRanges(withToc)
+        assertEquals(listOf("" to 0..0, "Intro" to 1..2, "Main" to 3..5), parts)
+    }
+
+    @Test
+    fun chapterRangesEmptyWithoutOutline() {
+        assertTrue(tools.chapterRanges(sample()).isEmpty())
+    }
 }
