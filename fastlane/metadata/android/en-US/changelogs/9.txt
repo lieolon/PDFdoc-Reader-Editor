@@ -1,0 +1,8 @@
+• Summary and questions over one or several PDFs, offline
+• Data and QR codes: phones, e-mails, dates to call, contacts, calendar
+• Lasso, handwriting to text, dictated notes
+• Secret folder behind fingerprint; templates: invoice, certificate, receipt, application
+• Lined, squared and music pages; pages per sheet; split by size and chapters
+• Laser pointer, comments export
+• Widget, scan tile, shortcuts, share photos to PDF
+• Open Excel and PowerPoint

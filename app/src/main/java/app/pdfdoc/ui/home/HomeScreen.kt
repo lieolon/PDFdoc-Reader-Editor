@@ -262,7 +262,13 @@ fun HomeScreen(
                 }
                 state.documents.isEmpty() && state.textHits.isEmpty() -> item {
                     MessageView(
-                        stringResource(if (state.filter == LibraryFilter.Secret) R.string.secret_empty else R.string.home_nothing_found),
+                        stringResource(
+                            when {
+                                state.filter == LibraryFilter.Secret -> R.string.secret_empty
+                                state.filter == LibraryFilter.All && state.query.isBlank() && state.secretCount > 0 -> R.string.secret_all_hidden
+                                else -> R.string.home_nothing_found
+                            },
+                        ),
                         modifier = Modifier.padding(top = 48.dp),
                     )
                 }

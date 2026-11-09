@@ -38,4 +38,10 @@ class SummarizerTest {
         val s = Summarizer.sentences("Первое предложение достаточно длинное. Второе тоже вполне длинное! А это ок?")
         assertEquals(2, s.size)
     }
+
+    @Test
+    fun initialsDoNotSplitSentences() {
+        val s = Summarizer.sentences("Договор заключён между Ивановым И. И. и Петровым П. П. на один год. Плата вносится ежемесячно до пятого числа.")
+        assertEquals(2, s.size)
+    }
 }

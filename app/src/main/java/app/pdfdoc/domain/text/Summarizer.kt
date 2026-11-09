@@ -38,7 +38,8 @@ object Summarizer {
 
     fun sentences(paragraph: String): List<String> =
         paragraph.replace(Regex("""\s+"""), " ").trim()
-            .split(Regex("""(?<=[.!?…])\s+(?=[\p{Lu}\p{N}«"(])"""))
+            // Initials like "И. И. Иванов" or "J. Smith" do not end a sentence.
+            .split(Regex("""(?<=[.!?…])(?<!\b\p{Lu}\.)\s+(?=[\p{Lu}\p{N}«"(])"""))
             .map { it.trim() }
             .filter { it.length in 25..600 }
 

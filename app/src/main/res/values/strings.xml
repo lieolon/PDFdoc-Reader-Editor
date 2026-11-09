@@ -214,7 +214,7 @@
     <string name="tool_protect">Password and protection</string>
     <string name="tool_protect_desc">Password to open, block printing and copying</string>
     <string name="tool_split">Split PDF</string>
-    <string name="tool_split_desc">Into several files by page ranges</string>
+    <string name="tool_split_desc">Into several files by pages, file size or chapters</string>
     <string name="tool_split_pages">Pages in document: %1$d</string>
     <string name="tool_split_every">Every N pages:</string>
     <string name="tool_split_ranges">By ranges</string>
@@ -677,4 +677,5 @@
     <string name="widget_empty">Recent documents will appear here</string>
     <string name="import_sheet">Sheet %1$d</string>
     <string name="import_slide">Slide %1$d</string>
+    <string name="secret_all_hidden">All your files are in the secret folder. Tap \"Secret\" to see them.</string>
 </resources>

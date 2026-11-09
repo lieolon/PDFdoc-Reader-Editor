@@ -37,14 +37,14 @@ class OcrEngine @Inject constructor(
 
     /** Recognizes words in [bitmap]. Blocking and CPU heavy: call off the main thread. */
     @Synchronized
-    fun recognize(bitmap: Bitmap, languages: String = LANGUAGES): List<OcrWord> {
+    fun recognize(bitmap: Bitmap, languages: String = LANGUAGES, pageSegMode: Int = TessBaseAPI.PageSegMode.PSM_AUTO): List<OcrWord> {
         val codes = languages.split('+').filter { it in OcrLanguages.ALL }.ifEmpty { listOf("eng") }.joinToString("+")
         ensureModels(codes)
         val api = TessBaseAPI()
         current = api
         try {
             if (!api.init(root.absolutePath, codes)) throw IOException("Tesseract init failed")
-            api.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+            api.setPageSegMode(pageSegMode)
             api.setImage(bitmap)
             api.getUTF8Text() // runs recognition
             val words = mutableListOf<OcrWord>()

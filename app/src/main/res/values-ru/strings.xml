@@ -214,7 +214,7 @@
     <string name="tool_protect">Пароль и защита</string>
     <string name="tool_protect_desc">Пароль на открытие, запрет печати и копирования</string>
     <string name="tool_split">Разделить PDF</string>
-    <string name="tool_split_desc">На несколько файлов по диапазонам страниц</string>
+    <string name="tool_split_desc">На несколько файлов: по страницам, размеру или главам</string>
     <string name="tool_split_pages">В документе страниц: %1$d</string>
     <string name="tool_split_every">Каждые N страниц:</string>
     <string name="tool_split_ranges">По диапазонам</string>
@@ -677,4 +677,5 @@
     <string name="widget_empty">Здесь появятся последние документы</string>
     <string name="import_sheet">Лист %1$d</string>
     <string name="import_slide">Слайд %1$d</string>
+    <string name="secret_all_hidden">Все ваши файлы в секретной папке. Нажмите «Секретная», чтобы их увидеть.</string>
 </resources>

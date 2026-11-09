@@ -347,10 +347,12 @@ class EditorViewModel @Inject constructor(
         }
         viewModelScope.launch {
             _state.update { it.copy(busy = true) }
-            val bounds = Box.bounding(inks.flatMap { it.strokes.flatten() })!!.inset(-12f)
+            val strokeHeight = inks.flatMap { it.strokes }.map { Box.bounding(it)!!.height }.sorted().let { it[it.size / 2] }.coerceAtLeast(4f)
+            // Tesseract reads best at a letter height of about 60 px with a white margin around the text.
+            val scale = (60f / strokeHeight).coerceIn(0.3f, 8f)
+            val bounds = Box.bounding(inks.flatMap { it.strokes.flatten() })!!.inset(-strokeHeight * 0.6f)
             val text = withContext(io) {
                 runCatching {
-                    val scale = (1600f / maxOf(bounds.width, bounds.height)).coerceIn(2f, 8f)
                     val bmp = Bitmap.createBitmap((bounds.width * scale).toInt().coerceAtLeast(1), (bounds.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
                     val canvas = android.graphics.Canvas(bmp)
                     canvas.drawColor(android.graphics.Color.WHITE)
@@ -361,7 +363,7 @@ class EditorViewModel @Inject constructor(
                         strokeJoin = android.graphics.Paint.Join.ROUND
                     }
                     inks.forEach { ink ->
-                        paint.strokeWidth = (ink.width * scale).coerceAtLeast(3f)
+                        paint.strokeWidth = 6f
                         ink.strokes.forEach { stroke ->
                             val path = android.graphics.Path()
                             stroke.forEachIndexed { i, p ->
@@ -372,7 +374,7 @@ class EditorViewModel @Inject constructor(
                             canvas.drawPath(path, paint)
                         }
                     }
-                    val words = ocr.recognize(bmp, settings.ocrLanguages.first())
+                    val words = ocr.recognize(bmp, settings.ocrLanguages.first(), com.googlecode.tesseract.android.TessBaseAPI.PageSegMode.PSM_SINGLE_BLOCK)
                     // Words come in reading order; keep line breaks where the next word starts lower.
                     buildString {
                         var lastBottom = -1f
@@ -390,7 +392,6 @@ class EditorViewModel @Inject constructor(
                 return@launch
             }
             val ids = inks.map { it.id }.toSet()
-            val strokeHeight = inks.flatMap { it.strokes }.map { Box.bounding(it)!!.height }.sorted().let { it[it.size / 2] }
             val size = (strokeHeight * 0.9f).coerceIn(10f, 48f)
             val typed = measured(TextEdit(nextId++, inks.first().page, Box(bounds.left + 12f, bounds.top + 12f, bounds.left + 12f, bounds.top + 12f), text, size, inks.first().color))
             commit(history.current.filterNot { it.id in ids } + typed)
