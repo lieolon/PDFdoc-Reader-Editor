@@ -637,4 +637,11 @@
     <string name="tpl_addressee">To</string>
     <string name="tpl_applicant">From</string>
     <string name="tpl_application_text">Text of the application</string>
+    <string name="tool_lasso">Lasso</string>
+    <string name="lasso_count">%1$d picked</string>
+    <string name="lasso_hint">Circle marks with a finger to pick several, then drag them or change their colour</string>
+    <string name="handwriting_to_text">To text</string>
+    <string name="handwriting_none">Pick handwriting with the lasso or select a pen stroke first</string>
+    <string name="handwriting_failed">Couldn\'t read the handwriting. Write larger and more clearly, in block letters.</string>
+    <string name="dictate">Dictate</string>
 </resources>

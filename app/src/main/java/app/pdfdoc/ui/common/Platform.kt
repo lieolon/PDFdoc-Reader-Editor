@@ -75,3 +75,25 @@ fun printPdf(context: Context, uri: Uri, jobName: String) {
     }
     printManager.print(jobName, adapter, null)
 }
+
+/**
+ * Dictation through the system speech recognizer, preferring on-device recognition.
+ * Returns null when the device has no recognizer; otherwise a function that starts listening.
+ */
+@androidx.compose.runtime.Composable
+fun rememberDictation(onText: (String) -> Unit): (() -> Unit)? {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            ?.takeIf { it.isNotBlank() }?.let(onText)
+    }
+    val intent = androidx.compose.runtime.remember {
+        android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            .putExtra(android.speech.RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+    }
+    val available = androidx.compose.runtime.remember { intent.resolveActivity(context.packageManager) != null }
+    return if (available) ({ runCatching { launcher.launch(intent) } }) else null
+}

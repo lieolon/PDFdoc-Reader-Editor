@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -64,7 +65,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 enum class Tool {
-    SELECT, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, SMART_PEN, ERASER, RECT, OVAL, LINE, ARROW, TEXT, NOTE,
+    SELECT, LASSO, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, SMART_PEN, ERASER, RECT, OVAL, LINE, ARROW, TEXT, NOTE,
     REDACT, LINK, FIELD, MEASURE_DISTANCE, MEASURE_AREA, IMAGE_EDIT,
 }
 
@@ -96,7 +97,10 @@ object Palette {
     const val YELLOW = 0xFFFFEB3B.toInt()
     const val ORANGE = 0xFFEF6C00.toInt()
     const val PURPLE = 0xFF6A1B9A.toInt()
-    val all = listOf(BLACK, RED, BLUE, GREEN, YELLOW, ORANGE, PURPLE)
+    const val GREY = 0xFF757575.toInt()
+    const val LIGHT_GREY = 0xFFBDBDBD.toInt()
+    const val WHITE = 0xFFFFFFFF.toInt()
+    val all = listOf(BLACK, GREY, LIGHT_GREY, WHITE, RED, BLUE, GREEN, YELLOW, ORANGE, PURPLE)
 }
 
 data class EditStyle(
@@ -125,6 +129,8 @@ data class EditorUiState(
     val page: Int = 0,
     val edits: List<Edit> = emptyList(),
     val selectedId: Long? = null,
+    /** Edits picked together with the lasso. */
+    val group: Set<Long> = emptySet(),
     val tool: Tool = Tool.SELECT,
     val style: EditStyle = EditStyle(),
     val canUndo: Boolean = false,
@@ -141,6 +147,7 @@ data class EditorUiState(
     val author: String = "",
 ) {
     val selected: Edit? get() = edits.firstOrNull { it.id == selectedId }
+    val grouped: List<Edit> get() = edits.filter { it.id in group }
     val pageEdits: List<Edit> get() = edits.filter { it.page == page }
 }
 
@@ -167,6 +174,7 @@ class EditorViewModel @Inject constructor(
     private val formBuilder: app.pdfdoc.data.pdf.PdfFormBuilder,
     private val pageImages: app.pdfdoc.data.pdf.PageImages,
     private val settings: app.pdfdoc.data.settings.SettingsRepository,
+    private val ocr: app.pdfdoc.data.ocr.OcrEngine,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
 
@@ -279,7 +287,118 @@ class EditorViewModel @Inject constructor(
         it.copy(page = page.coerceIn(0, (it.pageSizes.size - 1).coerceAtLeast(0)), selectedId = null)
     }
 
-    fun selectTool(tool: Tool) = _state.update { it.copy(tool = tool, selectedId = null, vertices = emptyList()) }
+    fun selectTool(tool: Tool) = _state.update { it.copy(tool = tool, selectedId = null, group = emptySet(), vertices = emptyList()) }
+
+    // region Lasso
+
+    /** Picks every edit on [page] whose centre lies inside the closed [path]. */
+    fun lasso(page: Int, path: List<Pt>) {
+        if (path.size < 3) {
+            _state.update { it.copy(group = emptySet()) }
+            return
+        }
+        val ids = history.current.filter { it.page == page && inside(it.frame().center, path) }.map { it.id }.toSet()
+        _state.update { it.copy(group = ids, selectedId = null) }
+    }
+
+    private fun inside(p: Pt, poly: List<Pt>): Boolean {
+        var inside = false
+        var j = poly.size - 1
+        for (i in poly.indices) {
+            val a = poly[i]
+            val b = poly[j]
+            if ((a.y > p.y) != (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside
+            j = i
+        }
+        return inside
+    }
+
+    /** Shows the lasso group moved by ([dx], [dy]) until [commitPreview]. */
+    fun previewGroupMove(dx: Float, dy: Float) {
+        val ids = state.value.group
+        transient = history.current.map { if (it.id in ids) it.translate(dx, dy) else it }
+        publish()
+    }
+
+    fun deleteGroup() {
+        val ids = state.value.group
+        if (ids.isEmpty()) return
+        commit(history.current.filterNot { it.id in ids })
+        _state.update { it.copy(group = emptySet()) }
+    }
+
+    fun recolorGroup(color: Int) {
+        val ids = state.value.group
+        commit(history.current.map { if (it.id in ids) it.withColor(color) else it })
+    }
+
+    fun clearGroup() = _state.update { it.copy(group = emptySet()) }
+
+    /**
+     * Turns handwriting into typed text: the ink strokes of the lasso group (or the selected ink) are drawn
+     * black on white and recognized offline, then replaced with a text box in the same place and colour.
+     */
+    fun handwritingToText() {
+        val s = state.value
+        val inks = (s.grouped.ifEmpty { listOfNotNull(s.selected) }).filterIsInstance<InkEdit>()
+        if (inks.isEmpty()) {
+            viewModelScope.launch { _events.send(EditorEvent.Message(R.string.handwriting_none)) }
+            return
+        }
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true) }
+            val bounds = Box.bounding(inks.flatMap { it.strokes.flatten() })!!.inset(-12f)
+            val text = withContext(io) {
+                runCatching {
+                    val scale = (1600f / maxOf(bounds.width, bounds.height)).coerceIn(2f, 8f)
+                    val bmp = Bitmap.createBitmap((bounds.width * scale).toInt().coerceAtLeast(1), (bounds.height * scale).toInt().coerceAtLeast(1), Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bmp)
+                    canvas.drawColor(android.graphics.Color.WHITE)
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.BLACK
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeCap = android.graphics.Paint.Cap.ROUND
+                        strokeJoin = android.graphics.Paint.Join.ROUND
+                    }
+                    inks.forEach { ink ->
+                        paint.strokeWidth = (ink.width * scale).coerceAtLeast(3f)
+                        ink.strokes.forEach { stroke ->
+                            val path = android.graphics.Path()
+                            stroke.forEachIndexed { i, p ->
+                                val x = (p.x - bounds.left) * scale
+                                val y = (p.y - bounds.top) * scale
+                                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                            }
+                            canvas.drawPath(path, paint)
+                        }
+                    }
+                    val words = ocr.recognize(bmp, settings.ocrLanguages.first())
+                    // Words come in reading order; keep line breaks where the next word starts lower.
+                    buildString {
+                        var lastBottom = -1f
+                        words.filter { it.confidence > 20f }.forEach { w ->
+                            if (isNotEmpty()) append(if (w.box.top > lastBottom) '\n' else ' ')
+                            append(w.text)
+                            lastBottom = w.box.bottom
+                        }
+                    }
+                }.getOrDefault("")
+            }
+            _state.update { it.copy(busy = false) }
+            if (text.isBlank()) {
+                _events.send(EditorEvent.Message(R.string.handwriting_failed))
+                return@launch
+            }
+            val ids = inks.map { it.id }.toSet()
+            val strokeHeight = inks.flatMap { it.strokes }.map { Box.bounding(it)!!.height }.sorted().let { it[it.size / 2] }
+            val size = (strokeHeight * 0.9f).coerceIn(10f, 48f)
+            val typed = measured(TextEdit(nextId++, inks.first().page, Box(bounds.left + 12f, bounds.top + 12f, bounds.left + 12f, bounds.top + 12f), text, size, inks.first().color))
+            commit(history.current.filterNot { it.id in ids } + typed)
+            _state.update { it.copy(group = emptySet(), selectedId = typed.id, tool = Tool.SELECT) }
+        }
+    }
+
+    // endregion
 
     fun selectFieldKind(kind: app.pdfdoc.domain.edit.FieldKind) =
         _state.update { it.copy(tool = Tool.FIELD, fieldKind = kind, selectedId = null) }
@@ -288,7 +407,9 @@ class EditorViewModel @Inject constructor(
 
     fun setColor(color: Int) {
         val selected = state.value.selected
-        if (selected != null) {
+        if (state.value.group.isNotEmpty()) {
+            recolorGroup(color)
+        } else if (selected != null) {
             replace(selected.withColor(color))
         } else {
             _state.update { it.copy(style = it.style.copy(colors = it.style.colors + (it.tool to color))) }
@@ -522,7 +643,43 @@ class EditorViewModel @Inject constructor(
     fun addText(page: Int, at: Pt, text: String) {
         if (text.isBlank()) return
         val s = state.value.style
-        add(measured(TextEdit(0, page, Box(at.x, at.y, at.x, at.y), text, s.textSize, s.color(Tool.TEXT))))
+        viewModelScope.launch {
+            // Tapping on document text picks up its size and colour, so additions blend in.
+            val match = matchTextStyle(page, at)
+            val size = match?.first ?: s.textSize
+            val color = match?.second ?: s.color(Tool.TEXT)
+            add(measured(TextEdit(0, page, Box(at.x, at.y, at.x, at.y), text, size, color)))
+        }
+    }
+
+    /** Size and colour of the document text right at [at], or null when the tap is not on text. */
+    private suspend fun matchTextStyle(page: Int, at: Pt): Pair<Float, Int>? {
+        val text = pageText(page) ?: return null
+        val i = text.indexAt(at) ?: return null
+        val word = text.rects(text.wordRange(i)).firstOrNull() ?: return null
+        if (!word.inset(-6f).contains(at)) return null
+        val size = (word.height / 0.97f).coerceIn(4f, 96f)
+        val pageWidth = state.value.pageSizes.getOrNull(page)?.width ?: return size to state.value.style.color(Tool.TEXT)
+        val scale = 2f
+        val bitmap = pageBitmap(page, (pageWidth * scale).toInt()) ?: return size to state.value.style.color(Tool.TEXT)
+        return size to (darkestColor(bitmap, word, scale) ?: state.value.style.color(Tool.TEXT))
+    }
+
+    /** The darkest pixel in [box] is the ink colour of the glyphs; anti-aliased edges are lighter. */
+    private fun darkestColor(bitmap: Bitmap, box: Box, scale: Float): Int? {
+        val l = (box.left * scale).toInt().coerceIn(0, bitmap.width - 1)
+        val r = (box.right * scale).toInt().coerceIn(l + 1, bitmap.width)
+        val t = (box.top * scale).toInt().coerceIn(0, bitmap.height - 1)
+        val b = (box.bottom * scale).toInt().coerceIn(t + 1, bitmap.height)
+        var best: Int? = null
+        var bestLum = Int.MAX_VALUE
+        for (y in t until b step 1) for (x in l until r step 1) {
+            val c = bitmap.getPixel(x, y)
+            val lum = (c shr 16 and 0xFF) * 3 + (c shr 8 and 0xFF) * 6 + (c and 0xFF)
+            if (lum < bestLum) { bestLum = lum; best = c or 0xFF000000.toInt() }
+        }
+        // A word with no ink darker than the paper is not worth matching.
+        return best.takeIf { bestLum < 1800 }
     }
 
     fun addNote(page: Int, at: Pt, text: String) {

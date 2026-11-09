@@ -9,6 +9,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +52,8 @@ import androidx.compose.material.icons.filled.RotateRight
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material.icons.filled.HighlightAlt
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -123,6 +126,7 @@ private data class ToolItem(val tool: Tool, val icon: ImageVector, val label: In
 
 private val Tools = listOf(
     ToolItem(Tool.SELECT, Icons.Default.TouchApp, R.string.tool_select),
+    ToolItem(Tool.LASSO, Icons.Default.HighlightAlt, R.string.tool_lasso),
     ToolItem(Tool.HIGHLIGHT, Icons.Default.BorderColor, R.string.tool_highlight),
     ToolItem(Tool.UNDERLINE, Icons.Default.FormatUnderlined, R.string.tool_underline),
     ToolItem(Tool.STRIKEOUT, Icons.Default.FormatStrikethrough, R.string.tool_strikeout),
@@ -245,7 +249,12 @@ fun EditorScreen(
                             onDelete = viewModel::deleteSelected,
                             onRotate = viewModel::rotateSelected,
                             onEditText = { prompt = TextPrompt.Edit(selected.id, textOf(selected)) },
+                            onHandwriting = viewModel::handwritingToText,
                         )
+                        HorizontalDivider()
+                    }
+                    if (state.group.isNotEmpty()) {
+                        GroupBar(state.grouped, onDelete = viewModel::deleteGroup, onHandwriting = viewModel::handwritingToText, onClear = viewModel::clearGroup)
                         HorizontalDivider()
                     }
                     ToolHint(state, onScale = { scaleDialog = true }, viewModel = viewModel)
@@ -305,6 +314,7 @@ fun EditorScreen(
                         edits = state.pageEdits,
                         selected = state.selected,
                         tool = state.tool,
+                        group = state.grouped,
                         previewColor = state.style.color(state.tool),
                         previewWidth = state.style.width,
                         textPaint = textPaint,
@@ -332,6 +342,8 @@ fun EditorScreen(
                             override fun onSelect(id: Long?) = viewModel.select(id)
                             override fun onPreview(edit: Edit) = viewModel.preview(edit)
                             override fun onCommitPreview() = viewModel.commitPreview()
+                            override fun onLasso(path: List<Pt>) = viewModel.lasso(state.page, path)
+                            override fun onGroupMove(dx: Float, dy: Float) = viewModel.previewGroupMove(dx, dy)
                         },
                     )
                     PageNavigator(
@@ -474,7 +486,7 @@ private fun StyleBar(state: EditorUiState, viewModel: EditorViewModel) {
         else -> state.style.color(tool)
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Palette.all.forEach { c ->
                 Box(
                     Modifier
@@ -522,7 +534,28 @@ private fun LabeledSlider(label: String, value: Float, range: ClosedFloatingPoin
 }
 
 @Composable
-private fun SelectionBar(edit: Edit, onDelete: () -> Unit, onRotate: () -> Unit, onEditText: () -> Unit) {
+private fun GroupBar(group: List<Edit>, onDelete: () -> Unit, onHandwriting: () -> Unit, onClear: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(stringResource(R.string.lasso_count, group.size), style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(horizontal = 8.dp))
+        TextButton(onClick = onDelete) {
+            Icon(Icons.Default.Delete, null)
+            Text(stringResource(R.string.pages_delete), Modifier.padding(start = 6.dp))
+        }
+        if (group.any { it is InkEdit }) {
+            TextButton(onClick = onHandwriting) {
+                Icon(Icons.Default.TextFields, null)
+                Text(stringResource(R.string.handwriting_to_text), Modifier.padding(start = 6.dp))
+            }
+        }
+        TextButton(onClick = onClear) { Text(stringResource(R.string.cancel)) }
+    }
+}
+
+@Composable
+private fun SelectionBar(edit: Edit, onDelete: () -> Unit, onRotate: () -> Unit, onEditText: () -> Unit, onHandwriting: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         TextButton(onClick = onDelete) {
             Icon(Icons.Default.Delete, null)
@@ -532,6 +565,12 @@ private fun SelectionBar(edit: Edit, onDelete: () -> Unit, onRotate: () -> Unit,
             TextButton(onClick = onEditText) {
                 Icon(Icons.Outlined.Edit, null)
                 Text(stringResource(R.string.editor_edit_text), Modifier.padding(start = 6.dp))
+            }
+        }
+        if (edit is InkEdit) {
+            TextButton(onClick = onHandwriting) {
+                Icon(Icons.Default.TextFields, null)
+                Text(stringResource(R.string.handwriting_to_text), Modifier.padding(start = 6.dp))
             }
         }
         if (edit is ImageEdit) {
@@ -600,6 +639,9 @@ private fun TextPromptDialog(
     note: String? = null,
 ) {
     var text by remember { mutableStateOf(initial) }
+    val dictate = app.pdfdoc.ui.common.rememberDictation { spoken ->
+        text = if (text.isBlank()) spoken else text.trimEnd() + " " + spoken
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -610,6 +652,9 @@ private fun TextPromptDialog(
                     onValueChange = { text = it },
                     singleLine = singleLine,
                     minLines = if (singleLine) 1 else 3,
+                    trailingIcon = if (dictate != null && !singleLine) ({
+                        IconButton(onClick = dictate) { Icon(Icons.Default.Mic, stringResource(R.string.dictate)) }
+                    }) else null,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 note?.let {

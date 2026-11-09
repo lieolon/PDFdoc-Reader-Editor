@@ -68,9 +68,11 @@ interface EditorGestures {
     fun onSelect(id: Long?)
     fun onPreview(edit: Edit)
     fun onCommitPreview()
+    fun onLasso(path: List<Pt>)
+    fun onGroupMove(dx: Float, dy: Float)
 }
 
-private enum class Mode { NONE, PEN, ERASE, SHAPE, AREA, MARKUP, TAP, MOVE, RESIZE, PAN, TRANSFORM }
+private enum class Mode { NONE, PEN, ERASE, SHAPE, AREA, MARKUP, TAP, MOVE, RESIZE, PAN, TRANSFORM, LASSO, GROUP_MOVE }
 
 @Composable
 fun EditorCanvas(
@@ -79,6 +81,7 @@ fun EditorCanvas(
     edits: List<Edit>,
     selected: Edit?,
     tool: Tool,
+    group: List<Edit> = emptyList(),
     previewColor: Int,
     previewWidth: Float,
     textPaint: Paint,
@@ -103,6 +106,7 @@ fun EditorCanvas(
     val currentTool by rememberUpdatedState(tool)
     val currentEdits by rememberUpdatedState(edits)
     val currentSelected by rememberUpdatedState(selected)
+    val currentGroup by rememberUpdatedState(group)
     val currentGestures by rememberUpdatedState(gestures)
     val density = LocalDensity.current.density
 
@@ -150,6 +154,15 @@ fun EditorCanvas(
                         dragEnd = start
                     }
                     Tool.TEXT, Tool.NOTE, Tool.MEASURE_AREA, Tool.IMAGE_EDIT -> mode = Mode.TAP
+                    Tool.LASSO -> {
+                        val bounds = Box.bounding(currentGroup.flatMap { it.frame().corners() })
+                        if (bounds != null && bounds.contains(start, touchTolerance)) {
+                            mode = Mode.GROUP_MOVE
+                        } else {
+                            mode = Mode.LASSO
+                            stroke = listOf(start)
+                        }
+                    }
                     Tool.SELECT -> {
                         val sel = currentSelected
                         handle = if (sel != null && sel.resizable) {
@@ -190,7 +203,8 @@ fun EditorCanvas(
                     if (!moved && (change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
                     val p = toPage(change.position)
                     when (mode) {
-                        Mode.PEN, Mode.ERASE -> stroke = stroke + p
+                        Mode.PEN, Mode.ERASE, Mode.LASSO -> stroke = stroke + p
+                        Mode.GROUP_MOVE -> if (moved) currentGestures.onGroupMove(p.x - start.x, p.y - start.y)
                         Mode.SHAPE, Mode.MARKUP, Mode.AREA -> dragEnd = p
                         Mode.MOVE -> if (moved) origEdit?.let { currentGestures.onPreview(it.translate(p.x - start.x, p.y - start.y)) }
                         Mode.RESIZE -> origEdit?.let { e ->
@@ -212,6 +226,8 @@ fun EditorCanvas(
                         if (currentTool == Tool.SMART_PEN) currentGestures.onSmartStroke(stroke) else currentGestures.onStroke(stroke)
                     }
                     Mode.ERASE -> currentGestures.onErase(stroke)
+                    Mode.LASSO -> currentGestures.onLasso(if (moved) stroke else emptyList())
+                    Mode.GROUP_MOVE -> if (moved) currentGestures.onCommitPreview()
                     Mode.AREA -> if (moved) currentGestures.onArea(start, end)
                     Mode.SHAPE -> if (moved) {
                         if (currentTool == Tool.MEASURE_DISTANCE) currentGestures.onMeasureLine(start, end)
@@ -262,6 +278,19 @@ fun EditorCanvas(
                         edits.forEach { draw(it, k, images::get) }
                         selected?.let { selection(it, k, zoom) }
                     }
+                    // Lasso group: a dashed frame around each picked edit and around all of them.
+                    if (group.isNotEmpty()) {
+                        val dash = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f * k / zoom, 4f * k / zoom))
+                        val blue = Color(0xFF1565C0)
+                        group.forEach { e ->
+                            val f = e.frame().inset(-3f)
+                            drawRect(blue.copy(alpha = 0.6f), f.topLeft(k), f.size(k), style = Stroke(1f * k / zoom, pathEffect = dash))
+                        }
+                        Box.bounding(group.flatMap { it.frame().corners() })?.inset(-8f)?.let { f ->
+                            drawRect(blue.copy(alpha = 0.08f), f.topLeft(k), f.size(k))
+                            drawRect(blue, f.topLeft(k), f.size(k), style = Stroke(1.5f * k / zoom, pathEffect = dash))
+                        }
+                    }
                     // Previews of the gesture in progress.
                     val color = Color(previewColor)
                     if (vertices.isNotEmpty()) {
@@ -272,7 +301,15 @@ fun EditorCanvas(
                         drawPath(path, Color(0xFF1565C0), style = Stroke(1.5f * k))
                         vertices.forEach { drawCircle(Color(0xFF1565C0), 3f * k, it.offset(k)) }
                     }
-                    if (tool == Tool.ERASER && stroke.isNotEmpty()) {
+                    if (tool == Tool.LASSO && stroke.size > 1) {
+                        val path = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(stroke[0].x * k, stroke[0].y * k)
+                            stroke.drop(1).forEach { lineTo(it.x * k, it.y * k) }
+                            close()
+                        }
+                        drawPath(path, Color(0x221565C0))
+                        drawPath(path, Color(0xFF1565C0), style = Stroke(1.5f * k / zoom, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(6f * k / zoom, 4f * k / zoom))))
+                    } else if (tool == Tool.ERASER && stroke.isNotEmpty()) {
                         stroke.forEach { drawCircle(Color(0x55E53935), 6f * k, it.offset(k)) }
                     } else if (stroke.size > 1) {
                         val path = androidx.compose.ui.graphics.Path().apply {

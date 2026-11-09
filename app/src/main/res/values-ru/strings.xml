@@ -637,4 +637,11 @@
     <string name="tpl_addressee">Кому</string>
     <string name="tpl_applicant">От кого</string>
     <string name="tpl_application_text">Текст заявления</string>
+    <string name="tool_lasso">Лассо</string>
+    <string name="lasso_count">Выбрано: %1$d</string>
+    <string name="lasso_hint">Обведите пометки пальцем, чтобы выбрать несколько, затем перетащите их или смените цвет</string>
+    <string name="handwriting_to_text">В текст</string>
+    <string name="handwriting_none">Сначала выберите рукописные штрихи лассо или выделите одну линию пера</string>
+    <string name="handwriting_failed">Не удалось прочитать рукопись. Пишите крупнее и разборчивее, печатными буквами.</string>
+    <string name="dictate">Диктовать</string>
 </resources>
