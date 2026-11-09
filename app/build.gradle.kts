@@ -98,6 +98,7 @@ dependencies {
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
     implementation(libs.tesseract)
+    implementation(libs.zxing.core)
     implementation(libs.androidx.documentfile)
     implementation(libs.work.runtime)
     implementation(libs.hilt.work)

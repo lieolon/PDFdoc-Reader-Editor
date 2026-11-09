@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.ChromeReaderMode
 import androidx.compose.material.icons.filled.Slideshow
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.SwipeDown
 import androidx.compose.material.icons.filled.VerticalSplit
 import androidx.compose.material3.RadioButton
@@ -182,6 +183,7 @@ fun ViewerScreen(
     onTools: (String) -> Unit,
     onReader: (String, Int) -> Unit,
     onPresent: (String, Int) -> Unit,
+    onAsk: (String) -> Unit = {},
     onOpenDocument: (android.net.Uri) -> Unit,
     viewModel: ViewerViewModel = hiltViewModel(),
 ) {
@@ -292,6 +294,11 @@ fun ViewerScreen(
                                         text = { Text(stringResource(R.string.reader_mode)) },
                                         leadingIcon = { Icon(Icons.Default.ChromeReaderMode, null) },
                                         onClick = { menu = false; onReader(viewModel.uri.toString(), currentPage(listState, mode)) },
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.ask_title)) },
+                                        leadingIcon = { Icon(Icons.Default.QuestionAnswer, null) },
+                                        onClick = { menu = false; onAsk(viewModel.uri.toString()) },
                                     )
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.present_mode)) },
@@ -868,6 +875,7 @@ private fun NavigationSheet(viewModel: ViewerViewModel, currentPage: Int, onDism
     var commentFilter by remember { mutableStateOf(0) }
     var replyTo by remember { mutableStateOf<app.pdfdoc.data.pdf.Comment?>(null) }
     var deleteComment by remember { mutableStateOf<app.pdfdoc.data.pdf.Comment?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     ModalBottomSheet(onDismissRequest = onDismiss) {
         TabRow(selectedTabIndex = tab) {
             Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text(stringResource(R.string.viewer_outline)) })
@@ -883,6 +891,15 @@ private fun NavigationSheet(viewModel: ViewerViewModel, currentPage: Int, onDism
                     onOpen = { onPage(it.page) },
                     onReply = { replyTo = it },
                     onDelete = { deleteComment = it },
+                    onExport = { list ->
+                        val name = (viewModel.state.value as? ViewerUiState.Ready)?.name.orEmpty().removeSuffix(".pdf")
+                        val md = commentsMarkdown(context, name, list)
+                        val send = android.content.Intent(android.content.Intent.ACTION_SEND)
+                            .setType("text/markdown")
+                            .putExtra(android.content.Intent.EXTRA_SUBJECT, name)
+                            .putExtra(android.content.Intent.EXTRA_TEXT, md)
+                        context.startActivity(android.content.Intent.createChooser(send, null))
+                    },
                 )
             } else if (tab == 0) {
                 val items = outline

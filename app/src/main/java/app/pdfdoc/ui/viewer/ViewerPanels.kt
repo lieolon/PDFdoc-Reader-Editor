@@ -177,11 +177,20 @@ fun LazyListScope.commentItems(
     onOpen: (Comment) -> Unit,
     onReply: (Comment) -> Unit,
     onDelete: (Comment) -> Unit,
+    onExport: ((List<Comment>) -> Unit)? = null,
 ) {
     item {
         Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CommentFilter.entries.forEachIndexed { i, f ->
                 FilterChip(selected = filter == i, onClick = { onFilter(i) }, label = { Text(stringResource(f.label)) })
+            }
+            if (onExport != null && !comments.isNullOrEmpty()) {
+                val kinds = CommentFilter.entries[filter].kinds
+                androidx.compose.material3.AssistChip(
+                    onClick = { onExport(comments.filter { kinds == null || it.kind in kinds }) },
+                    label = { Text(stringResource(R.string.comments_export)) },
+                    leadingIcon = { androidx.compose.material3.Icon(androidx.compose.material.icons.Icons.Default.Share, null) },
+                )
             }
         }
     }
@@ -328,5 +337,25 @@ fun AutoScrollBar(speed: Float, onSpeed: (Float) -> Unit, modifier: Modifier = M
             IconButton(onClick = { onSpeed((speed * 1.5f).coerceAtMost(400f)) }) { Icon(Icons.Default.FastForward, stringResource(R.string.auto_scroll_faster)) }
             IconButton(onClick = { onSpeed(0f) }) { Icon(Icons.Default.Stop, stringResource(R.string.read_aloud_stop)) }
         }
+    }
+}
+
+/** Comments as a Markdown summary: one section per page, with kind, author, date and replies. */
+fun commentsMarkdown(context: android.content.Context, title: String, comments: List<Comment>): String = buildString {
+    append("# ").append(title).append("\n\n")
+    comments.groupBy { it.page }.toSortedMap().forEach { (page, list) ->
+        append("## ").append(context.getString(R.string.form_page, page + 1)).append("\n\n")
+        list.forEach { c ->
+            val meta = listOfNotNull(
+                context.getString(kindLabel(c.kind)),
+                c.author,
+                c.date?.let { DateFormat.getDateInstance(DateFormat.SHORT).format(it.time) },
+            ).joinToString(" · ")
+            append("- **").append(meta).append("**")
+            if (c.text.isNotBlank()) append(": ").append(c.text.replace("\n", " "))
+            append("\n")
+            c.replies.forEach { r -> append("  - ").append(listOfNotNull(r.author, r.text).joinToString(": ")).append("\n") }
+        }
+        append("\n")
     }
 }

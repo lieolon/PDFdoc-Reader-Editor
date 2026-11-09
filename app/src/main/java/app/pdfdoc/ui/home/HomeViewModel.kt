@@ -145,6 +145,14 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** Keeps access to the PDFs picked for questions, then hands them on. */
+    fun prepareForAsk(uris: List<Uri>, then: (List<Uri>) -> Unit) {
+        viewModelScope.launch {
+            uris.forEach { runCatching { documents.recordOpened(it, null) } }
+            then(uris)
+        }
+    }
+
     fun remove(id: Long) {
         viewModelScope.launch { documents.remove(id) }
     }

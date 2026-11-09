@@ -26,6 +26,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.TextDecrease
 import androidx.compose.material.icons.filled.TextIncrease
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.Adjust
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -296,6 +300,8 @@ fun PresentScreen(onBack: () -> Unit, viewModel: PresentViewModel = hiltViewMode
                 val scope = rememberCoroutineScope()
                 var controls by remember { mutableStateOf(true) }
                 var seconds by remember { mutableIntStateOf(0) }
+                var laser by remember { mutableStateOf(false) }
+                var laserAt by remember { mutableStateOf<androidx.compose.ui.geometry.Offset?>(null) }
                 LaunchedEffect(seconds, pager.currentPage) {
                     if (seconds > 0 && pager.currentPage < list.size - 1) {
                         delay(seconds * 1000L)
@@ -304,7 +310,7 @@ fun PresentScreen(onBack: () -> Unit, viewModel: PresentViewModel = hiltViewMode
                 }
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val widthPx = with(LocalDensity.current) { maxWidth.roundToPx() }.coerceAtMost(2048)
-                    HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { index ->
+                    HorizontalPager(state = pager, userScrollEnabled = !laser, modifier = Modifier.fillMaxSize()) { index ->
                         val bitmap by produceState<Bitmap?>(null, index) { value = viewModel.page(index, widthPx) }
                         val size = list[index]
                         Box(
@@ -328,6 +334,43 @@ fun PresentScreen(onBack: () -> Unit, viewModel: PresentViewModel = hiltViewMode
                         }
                     }
                 }
+                if (laser) {
+                    // Laser pointer: drag to point, tap the sides to change slides as usual.
+                    Box(
+                        Modifier.fillMaxSize().pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                laserAt = down.position
+                                var moved = false
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull() ?: break
+                                    if (!change.pressed) break
+                                    if ((change.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
+                                    laserAt = change.position
+                                    change.consume()
+                                }
+                                laserAt = null
+                                if (!moved) {
+                                    val x = down.position.x
+                                    when {
+                                        x < size.width * 0.3f -> scope.launch { pager.animateScrollToPage((pager.currentPage - 1).coerceAtLeast(0)) }
+                                        x > size.width * 0.7f -> scope.launch { pager.animateScrollToPage((pager.currentPage + 1).coerceAtMost(list.size - 1)) }
+                                        else -> controls = !controls
+                                    }
+                                }
+                            }
+                        },
+                    ) {
+                        laserAt?.let { at ->
+                            androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                                drawCircle(Color(0x55FF1744), 28.dp.toPx(), at)
+                                drawCircle(Color(0xAAFF1744), 14.dp.toPx(), at)
+                                drawCircle(Color(0xFFFF5252), 7.dp.toPx(), at)
+                            }
+                        }
+                    }
+                }
                 if (controls) {
                     Row(
                         Modifier.align(Alignment.TopCenter).fillMaxWidth().background(Color(0x99000000)).padding(4.dp),
@@ -335,7 +378,18 @@ fun PresentScreen(onBack: () -> Unit, viewModel: PresentViewModel = hiltViewMode
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         IconButton(onClick = onBack) { Icon(Icons.Default.Close, stringResource(R.string.back), tint = Color.White) }
-                        Text(stringResource(R.string.viewer_page_indicator, pager.currentPage + 1, list.size), color = Color.White, modifier = Modifier.weight(1f))
+                        Text(stringResource(R.string.viewer_page_indicator, pager.currentPage + 1, list.size), color = Color.White)
+                        Row(
+                            Modifier.weight(1f).horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.End),
+                        ) {
+                        FilterChip(
+                            selected = laser,
+                            onClick = { laser = !laser },
+                            label = { Text(stringResource(R.string.laser_pointer), color = Color.White) },
+                            leadingIcon = { Icon(Icons.Default.Adjust, null, tint = Color(0xFFFF5252)) },
+                        )
                         Icon(Icons.Default.Timer, null, tint = Color.White)
                         listOf(0, 5, 10, 30).forEach { s ->
                             FilterChip(
@@ -343,6 +397,7 @@ fun PresentScreen(onBack: () -> Unit, viewModel: PresentViewModel = hiltViewMode
                                 onClick = { seconds = s },
                                 label = { Text(if (s == 0) "—" else "${s}s", color = Color.White) },
                             )
+                        }
                         }
                     }
                 }

@@ -39,6 +39,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onBatch = { nav.navigate(BatchRoute) },
                 onTextToPdf = { nav.navigate(TextToPdfRoute) },
                 onTools = { nav.navigate(ToolsRoute(it.toString())) },
+                onAsk = { uris -> nav.navigate(AskRoute(uris.map(Uri::toString))) },
             )
         }
         composable<ViewerRoute> {
@@ -50,6 +51,7 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onTools = { uri -> nav.navigate(ToolsRoute(uri)) },
                 onReader = { uri, page -> nav.navigate(ReaderRoute(uri, page)) },
                 onPresent = { uri, page -> nav.navigate(PresentRoute(uri, page)) },
+                onAsk = { uri -> nav.navigate(AskRoute(listOf(uri))) },
                 onOpenDocument = { uri -> nav.navigate(ViewerRoute(uri.toString())) { popUpTo<HomeRoute>() } },
             )
         }
@@ -116,6 +118,12 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
         }
         composable<ReaderRoute> {
             app.pdfdoc.ui.reader.ReaderScreen(onBack = nav::popBackStack)
+        }
+        composable<AskRoute> {
+            app.pdfdoc.ui.ask.AskScreen(
+                onBack = nav::popBackStack,
+                onOpen = { uri, page -> nav.navigate(ReaderRoute(uri, page)) },
+            )
         }
         composable<PresentRoute> {
             app.pdfdoc.ui.reader.PresentScreen(onBack = nav::popBackStack)

@@ -73,6 +73,8 @@ sealed interface DocumentJob {
     ) : DocumentJob
 }
 
+data class DocumentData(val items: List<app.pdfdoc.domain.text.FoundData>, val codes: List<app.pdfdoc.data.pdf.FoundCode>)
+
 sealed interface SplitMode {
     data class Ranges(val ranges: List<IntRange>) : SplitMode
     data class BySize(val maxBytes: Long) : SplitMode
@@ -277,6 +279,24 @@ class ToolsViewModel @Inject constructor(
 
     suspend fun properties(): app.pdfdoc.data.pdf.DocProperties? = withContext(io) {
         working?.let { runCatching { docTools.properties(it) }.getOrNull() }
+    }
+
+    /** Phones, e-mails, links, dates, amounts and QR/barcodes of the document, for the "Data" sheet. */
+    suspend fun findData(): DocumentData = withContext(io) {
+        val source = working ?: return@withContext DocumentData(emptyList(), emptyList())
+        val pages = runCatching {
+            com.tom_roush.pdfbox.pdmodel.PDDocument.load(source, com.tom_roush.pdfbox.io.MemoryUsageSetting.setupTempFileOnly()).use { doc ->
+                val stripper = com.tom_roush.pdfbox.text.PDFTextStripper().apply { sortByPosition = true }
+                (1..doc.numberOfPages).map { i ->
+                    stripper.startPage = i
+                    stripper.endPage = i
+                    stripper.getText(doc)
+                }
+            }
+        }.getOrDefault(emptyList())
+        val codes = runCatching { docTools.barcodes(source) { page, total -> progress(R.string.data_scanning, page, total) } }.getOrDefault(emptyList())
+        _state.update { it.copy(progressText = null) }
+        DocumentData(app.pdfdoc.domain.text.DataDetector.find(pages), codes)
     }
 
     suspend fun outline(): List<app.pdfdoc.data.pdf.OutlineEntry> = withContext(io) {

@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ViewHeadline
 import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.List
@@ -125,6 +126,7 @@ private enum class Tool(val icon: ImageVector, val title: Int, val description: 
     PROPERTIES(Icons.Default.Info, R.string.tool_properties, R.string.tool_properties_desc, Section.DOCUMENT),
     OUTLINE(Icons.AutoMirrored.Filled.List, R.string.tool_outline, R.string.tool_outline_desc, Section.DOCUMENT),
     ATTACHMENTS(Icons.Default.AttachFile, R.string.tool_attachments, R.string.tool_attachments_desc, Section.DOCUMENT),
+    DATA(Icons.Default.QrCodeScanner, R.string.tool_data, R.string.tool_data_desc, Section.DOCUMENT),
     FLATTEN(Icons.Default.Layers, R.string.tool_flatten, R.string.tool_flatten_desc, Section.DOCUMENT),
     COMPRESS(Icons.Default.Compress, R.string.tool_compress, R.string.tool_compress_desc, Section.DOCUMENT),
     PDFA(Icons.Default.Archive, R.string.tool_pdfa, R.string.tool_pdfa_desc, Section.DOCUMENT),
@@ -287,6 +289,7 @@ fun ToolsScreen(
                 Tool.PROPERTIES -> PropertiesOptions(viewModel, save)
                 Tool.OUTLINE -> OutlineOptions(viewModel, state.pageCount, save)
                 Tool.ATTACHMENTS -> AttachmentsOptions(viewModel)
+                Tool.DATA -> DataOptions(viewModel)
                 Tool.FLATTEN -> SimpleJobOptions(R.string.tool_flatten, R.string.tool_flatten_note, DocumentJob.Flatten, "flat", save)
                 Tool.PDFA -> SimpleJobOptions(R.string.tool_pdfa, R.string.tool_pdfa_note, DocumentJob.PdfA, "PDF-A", save)
                 Tool.REDACT -> RedactTextOptions(save)

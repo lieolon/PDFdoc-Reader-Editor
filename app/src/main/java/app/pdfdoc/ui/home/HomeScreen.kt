@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.DynamicFeed
 import androidx.compose.material.icons.filled.PostAdd
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
@@ -89,6 +90,8 @@ fun HomeScreen(
     onTextToPdf: () -> Unit,
     /** A PDF picked to work on with page numbers, watermark, compression, password and export tools. */
     onTools: (Uri) -> Unit,
+    /** Summary of and questions about one or several picked PDFs. */
+    onAsk: (List<Uri>) -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -98,10 +101,18 @@ fun HomeScreen(
             onDismiss = { picker = null },
             onPicked = { uris ->
                 picker = null
-                uris.firstOrNull()?.let { if (pick == HomePick.OPEN) onOpenFile(it) else viewModel.prepareForTools(it, onTools) }
+                when (pick) {
+                    HomePick.OPEN -> uris.firstOrNull()?.let(onOpenFile)
+                    HomePick.TOOLS -> uris.firstOrNull()?.let { viewModel.prepareForTools(it, onTools) }
+                    HomePick.ASK -> if (uris.isNotEmpty()) viewModel.prepareForAsk(uris, onAsk)
+                }
             },
-            multiple = false,
-            title = if (pick == HomePick.OPEN) R.string.picker_open_title else R.string.picker_pdf_title,
+            multiple = pick == HomePick.ASK,
+            title = when (pick) {
+                HomePick.OPEN -> R.string.picker_open_title
+                HomePick.TOOLS -> R.string.picker_pdf_title
+                HomePick.ASK -> R.string.ask_pick
+            },
             mimeTypes = if (pick == HomePick.OPEN) app.pdfdoc.data.convert.ImportFormats.MIME_TYPES else arrayOf("application/pdf"),
         )
     }
@@ -179,6 +190,9 @@ fun HomeScreen(
                 }
                 item {
                     ToolsAction { picker = HomePick.TOOLS }
+                }
+                item {
+                    ToolsAction(Icons.Default.QuestionAnswer, R.string.ask_title, R.string.ask_home_hint) { picker = HomePick.ASK }
                 }
             }
             if (state.hasAnyDocuments) {
@@ -313,17 +327,22 @@ private fun QuickAction(icon: ImageVector, label: String, modifier: Modifier, on
 }
 
 /** What the file chooser on the home screen was opened for. */
-private enum class HomePick { OPEN, TOOLS }
+private enum class HomePick { OPEN, TOOLS, ASK }
 
 @Composable
-private fun ToolsAction(onClick: () -> Unit) {
+private fun ToolsAction(
+    icon: ImageVector = Icons.Default.Build,
+    title: Int = R.string.viewer_tools,
+    hint: Int = R.string.home_tools_hint,
+    onClick: () -> Unit,
+) {
     ElevatedCard(onClick = onClick, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Build, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+            Icon(icon, null, Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f).padding(start = 16.dp)) {
-                Text(stringResource(R.string.viewer_tools), style = MaterialTheme.typography.labelLarge)
+                Text(stringResource(title), style = MaterialTheme.typography.labelLarge)
                 Text(
-                    stringResource(R.string.home_tools_hint),
+                    stringResource(hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

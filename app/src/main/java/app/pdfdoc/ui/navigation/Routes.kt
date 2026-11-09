@@ -51,3 +51,7 @@ data object BatchRoute
 /** Creates a PDF from a text, Markdown or HTML file. */
 @Serializable
 data object TextToPdfRoute
+
+/** Summary of and questions about the documents [uris], answered from their text. */
+@Serializable
+data class AskRoute(val uris: List<String>)

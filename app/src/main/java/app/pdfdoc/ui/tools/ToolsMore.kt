@@ -4,6 +4,22 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.EventAvailable
+import androidx.compose.material.icons.filled.Link
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.ViewWeek
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -549,4 +565,98 @@ internal fun VerifyOptions(viewModel: ToolsViewModel) {
     }
     Note(R.string.verify_note)
     androidx.compose.foundation.layout.Spacer(Modifier.padding(bottom = 16.dp))
+}
+
+@Composable
+internal fun DataOptions(viewModel: ToolsViewModel) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val data by produceState<DocumentData?>(null) { value = viewModel.findData() }
+    SheetTitle(R.string.tool_data)
+    val found = data
+    if (found == null) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 16.dp)) {
+            CircularProgressIndicator(Modifier.size(24.dp))
+            Text(stringResource(R.string.data_searching), Modifier.padding(start = 12.dp))
+        }
+        return
+    }
+    if (found.items.isEmpty() && found.codes.isEmpty()) {
+        Note(R.string.data_none)
+        Spacer(Modifier.height(24.dp))
+        return
+    }
+    fun start(intent: android.content.Intent) {
+        runCatching { context.startActivity(intent) }.onFailure {
+            android.widget.Toast.makeText(context, R.string.no_app_for_action, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
+    fun copy(text: String) {
+        val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+        clipboard.setPrimaryClip(android.content.ClipData.newPlainText(text, text))
+        android.widget.Toast.makeText(context, R.string.copied, android.widget.Toast.LENGTH_SHORT).show()
+    }
+    fun open(text: String) {
+        val url = if (text.startsWith("www.", ignoreCase = true)) "https://$text" else text
+        start(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+    }
+    @Composable
+    fun Row(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, page: Int, actions: @Composable () -> Unit) {
+        ListItem(
+            headlineContent = { Text(text, maxLines = 3, overflow = TextOverflow.Ellipsis) },
+            supportingContent = { Text(stringResource(R.string.form_page, page + 1)) },
+            leadingContent = { Icon(icon, null, tint = MaterialTheme.colorScheme.primary) },
+            trailingContent = { androidx.compose.foundation.layout.Row { actions() } },
+            colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.clickable { copy(text) },
+        )
+    }
+    if (found.codes.isNotEmpty()) Label(R.string.data_codes)
+    found.codes.forEach { c ->
+        val isLink = Regex("^(https?://|www\\.)", RegexOption.IGNORE_CASE).containsMatchIn(c.text)
+        Row(if (c.qr) Icons.Default.QrCode2 else Icons.Default.ViewWeek, c.text, c.page) {
+            if (isLink) IconButton(onClick = { open(c.text) }) { Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.data_open)) }
+            IconButton(onClick = { copy(c.text) }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.copy)) }
+        }
+    }
+    if (found.items.isNotEmpty()) Label(R.string.data_found)
+    found.items.forEach { d ->
+        when (d.kind) {
+            app.pdfdoc.domain.text.DataKind.PHONE -> Row(Icons.Default.Phone, d.text, d.page) {
+                IconButton(onClick = { start(android.content.Intent(android.content.Intent.ACTION_DIAL, android.net.Uri.parse("tel:" + d.text.filter { it.isDigit() || it == '+' }))) }) {
+                    Icon(Icons.Default.Call, stringResource(R.string.data_call))
+                }
+                IconButton(onClick = {
+                    start(android.content.Intent(android.content.Intent.ACTION_INSERT).setType(android.provider.ContactsContract.Contacts.CONTENT_TYPE)
+                        .putExtra(android.provider.ContactsContract.Intents.Insert.PHONE, d.text))
+                }) { Icon(Icons.Default.PersonAdd, stringResource(R.string.data_add_contact)) }
+            }
+            app.pdfdoc.domain.text.DataKind.EMAIL -> Row(Icons.Default.Email, d.text, d.page) {
+                IconButton(onClick = { start(android.content.Intent(android.content.Intent.ACTION_SENDTO, android.net.Uri.parse("mailto:" + d.text))) }) {
+                    Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.data_write))
+                }
+                IconButton(onClick = {
+                    start(android.content.Intent(android.content.Intent.ACTION_INSERT).setType(android.provider.ContactsContract.Contacts.CONTENT_TYPE)
+                        .putExtra(android.provider.ContactsContract.Intents.Insert.EMAIL, d.text))
+                }) { Icon(Icons.Default.PersonAdd, stringResource(R.string.data_add_contact)) }
+            }
+            app.pdfdoc.domain.text.DataKind.LINK -> Row(Icons.Default.Link, d.text, d.page) {
+                IconButton(onClick = { open(d.text) }) { Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.data_open)) }
+            }
+            app.pdfdoc.domain.text.DataKind.DATE -> Row(Icons.Default.Event, d.text, d.page) {
+                val ymd = app.pdfdoc.domain.text.DataDetector.parseDate(d.text)
+                if (ymd != null) IconButton(onClick = {
+                    val cal = java.util.Calendar.getInstance().apply { set(ymd.first, ymd.second - 1, ymd.third, 9, 0, 0) }
+                    start(android.content.Intent(android.content.Intent.ACTION_INSERT).setData(android.provider.CalendarContract.Events.CONTENT_URI)
+                        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, cal.timeInMillis)
+                        .putExtra(android.provider.CalendarContract.EXTRA_EVENT_ALL_DAY, true)
+                        .putExtra(android.provider.CalendarContract.Events.TITLE, viewModel.baseName))
+                }) { Icon(Icons.Default.EventAvailable, stringResource(R.string.data_add_event)) }
+            }
+            app.pdfdoc.domain.text.DataKind.AMOUNT -> Row(Icons.Default.Payments, d.text, d.page) {
+                IconButton(onClick = { copy(d.text) }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.copy)) }
+            }
+        }
+    }
+    Note(R.string.data_hint)
+    Spacer(Modifier.height(24.dp))
 }

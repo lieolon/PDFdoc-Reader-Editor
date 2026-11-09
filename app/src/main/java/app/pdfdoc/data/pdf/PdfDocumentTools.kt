@@ -65,6 +65,9 @@ data class Attachment(val name: String, val size: Long, val description: String?
 
 data class OutlineEntry(val title: String, val page: Int, val level: Int)
 
+/** A QR code or barcode found on zero-based [page]. */
+data class FoundCode(val page: Int, val text: String, val qr: Boolean)
+
 enum class PaperSize(val width: Float, val height: Float) {
     A3(841.89f, 1190.55f),
     A4(595.28f, 841.89f),
@@ -269,6 +272,35 @@ class PdfDocumentTools @Inject constructor(
         }
         return parts
     }
+
+    /**
+     * QR codes and barcodes printed on the pages, read offline with ZXing, in page order.
+     * [onPage] reports progress (1-based page, total).
+     */
+    suspend fun barcodes(source: File, onPage: (Int, Int) -> Unit = { _, _ -> }): List<FoundCode> =
+        renderers.open(source).use { session ->
+            val reader = com.google.zxing.multi.GenericMultipleBarcodeReader(com.google.zxing.MultiFormatReader())
+            val hints = mapOf(com.google.zxing.DecodeHintType.TRY_HARDER to true)
+            val found = mutableListOf<FoundCode>()
+            session.pageSizes.indices.forEach { i ->
+                onPage(i + 1, session.pageSizes.size)
+                val bitmap = session.render(i, BARCODE_WIDTH) ?: return@forEach
+                val pixels = IntArray(bitmap.width * bitmap.height)
+                // Transparent page areas render black; paint them white so codes keep their contrast.
+                bitmap.getPixels(pixels, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
+                for (p in pixels.indices) if (pixels[p] ushr 24 == 0) pixels[p] = -1
+                val source = com.google.zxing.RGBLuminanceSource(bitmap.width, bitmap.height, pixels)
+                bitmap.recycle()
+                val results = runCatching {
+                    reader.decodeMultiple(com.google.zxing.BinaryBitmap(com.google.zxing.common.HybridBinarizer(source)), hints)
+                }.getOrNull().orEmpty()
+                results.map { it.text }.distinct().forEach { text ->
+                    val format = results.first { it.text == text }.barcodeFormat
+                    found += FoundCode(i, text, format == com.google.zxing.BarcodeFormat.QR_CODE)
+                }
+            }
+            found
+        }
 
     /** Draws annotations and form values into the pages so they can no longer be changed. */
     fun flatten(source: File, target: File): Boolean {
@@ -567,6 +599,7 @@ ${if (author.isNotBlank()) "<dc:creator><rdf:Seq><rdf:li>${esc(author)}</rdf:li>
 
     private companion object {
         const val AUTO_CROP_WIDTH = 500
+        const val BARCODE_WIDTH = 1600
         val SCRIPT_ACTIONS = setOf("JavaScript", "Launch", "SubmitForm", "ImportData")
     }
 }
