@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_scan"
+        android:shortcutShortLabel="@string/home_scan">
+        <intent
+            android:action="app.pdfdoc.action.SCAN"
+            android:targetClass="app.pdfdoc.MainActivity"
+            android:targetPackage="app.pdfdoc" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="images"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_images"
+        android:shortcutShortLabel="@string/home_images_to_pdf">
+        <intent
+            android:action="app.pdfdoc.action.IMAGES_TO_PDF"
+            android:targetClass="app.pdfdoc.MainActivity"
+            android:targetPackage="app.pdfdoc" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="open"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_open"
+        android:shortcutShortLabel="@string/home_open">
+        <intent
+            android:action="app.pdfdoc.action.OPEN"
+            android:targetClass="app.pdfdoc.MainActivity"
+            android:targetPackage="app.pdfdoc" />
+    </shortcut>
+</shortcuts>

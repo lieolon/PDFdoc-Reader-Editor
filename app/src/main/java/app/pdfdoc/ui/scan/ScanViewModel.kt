@@ -86,6 +86,9 @@ class ScanViewModel @Inject constructor(
     /** Started as "images to PDF": open the gallery first, keep colors and skip OCR by default. */
     val fromImages: Boolean = savedStateHandle.toRoute<ScanRoute>().fromImages
 
+    /** Images shared to the app ("Make PDF" from the share sheet), imported right away. */
+    private val sharedImages = savedStateHandle.toRoute<ScanRoute>().images
+
     private val _state = MutableStateFlow(
         if (fromImages) ScanUiState(filter = ScanFilter.COLOR, recognize = false) else ScanUiState(),
     )
@@ -93,6 +96,13 @@ class ScanViewModel @Inject constructor(
 
     private val _events = Channel<ScanEvent>(Channel.BUFFERED)
     val events = _events.receiveAsFlow()
+
+    init {
+        if (sharedImages.isNotEmpty() && savedStateHandle.get<Boolean>(SHARED_DONE) != true) {
+            savedStateHandle[SHARED_DONE] = true
+            import(sharedImages.map(Uri::parse))
+        }
+    }
 
     private val dir = File(files.workDir, "scan-${UUID.randomUUID()}").apply { mkdirs() }
     private var nextId = 1L
@@ -331,3 +341,5 @@ class ScanViewModel @Inject constructor(
         const val PREVIEW_SIDE = 400
     }
 }
+
+private const val SHARED_DONE = "shared_images_imported"

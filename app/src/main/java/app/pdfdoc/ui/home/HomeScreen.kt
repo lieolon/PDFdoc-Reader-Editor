@@ -52,6 +52,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,10 +93,19 @@ fun HomeScreen(
     onTools: (Uri) -> Unit,
     /** Summary of and questions about one or several picked PDFs. */
     onAsk: (List<Uri>) -> Unit = {},
+    /** Open the file chooser right away (the "Open PDF" shortcut). */
+    openPicker: Boolean = false,
+    onPickerShown: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var picker by remember { mutableStateOf<HomePick?>(null) }
+    LaunchedEffect(openPicker) {
+        if (openPicker) {
+            picker = HomePick.OPEN
+            onPickerShown()
+        }
+    }
     picker?.let { pick ->
         app.pdfdoc.ui.common.PdfPickerSheet(
             onDismiss = { picker = null },

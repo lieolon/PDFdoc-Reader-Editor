@@ -670,4 +670,9 @@
     <string name="ask_nothing">В тексте нет ничего по этому вопросу. Попробуйте другие слова.</string>
     <string name="ask_summary">Главное</string>
     <string name="ask_note">Работает без интернета: главное — это предложения с основными словами текста, ответы — фрагменты, ближе всего к вашему вопросу. Нажмите на фрагмент, чтобы прочитать его в контексте.</string>
+    <string name="share_target">Открыть в PDFdoc</string>
+    <string name="share_target_images">Сделать PDF</string>
+    <string name="widget_name">PDFdoc</string>
+    <string name="widget_description">Сканер, фото в PDF и последние документы</string>
+    <string name="widget_empty">Здесь появятся последние документы</string>
 </resources>

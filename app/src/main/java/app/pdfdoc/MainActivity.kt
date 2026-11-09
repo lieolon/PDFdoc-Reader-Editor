@@ -31,7 +31,7 @@ open class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var settings: SettingsRepository
 
-    private var incomingUri by mutableStateOf<Uri?>(null)
+    private var incoming by mutableStateOf<app.pdfdoc.ui.navigation.Incoming?>(null)
     private var locked by mutableStateOf(false)
     private var lockEnabled = false
     private var backgroundSince = 0L
@@ -39,7 +39,7 @@ open class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        if (savedInstanceState == null) incomingUri = intent.pdfUri()
+        if (savedInstanceState == null) incoming = app.pdfdoc.ui.navigation.Incoming.of(intent)
         lockEnabled = kotlinx.coroutines.runBlocking { settings.appLock.first() }
         locked = lockEnabled && (savedInstanceState == null || savedInstanceState.getBoolean(KEY_LOCKED, true))
         lifecycleScope.launch {
@@ -55,7 +55,7 @@ open class MainActivity : AppCompatActivity() {
                         if (locked) {
                             app.pdfdoc.ui.lock.LockScreen(onUnlock = { app.pdfdoc.ui.lock.AppLock.prompt(this@MainActivity) { locked = false } })
                         } else {
-                            AppNavHost(incomingUri = incomingUri, onIncomingHandled = { incomingUri = null })
+                            AppNavHost(incoming = incoming, onIncomingHandled = { incoming = null })
                         }
                     }
                 }
@@ -66,6 +66,7 @@ open class MainActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         backgroundSince = System.currentTimeMillis()
+        app.pdfdoc.ui.system.PdfDocWidget.refresh(this)
     }
 
     override fun onStart() {
@@ -80,10 +81,8 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent.pdfUri()?.let { incomingUri = it }
+        app.pdfdoc.ui.navigation.Incoming.of(intent)?.let { incoming = it }
     }
-
-    private fun Intent.pdfUri(): Uri? = if (action == Intent.ACTION_VIEW) data else null
 
     private companion object {
         const val KEY_LOCKED = "locked"

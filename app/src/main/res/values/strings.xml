@@ -670,4 +670,9 @@
     <string name="ask_nothing">Nothing in the text matches the question. Try other words.</string>
     <string name="ask_summary">Key points</string>
     <string name="ask_note">Works without the internet: key points are the sentences that carry the main words of the text, answers are the passages closest to your question. Tap a passage to read it in context.</string>
+    <string name="share_target">Open in PDFdoc</string>
+    <string name="share_target_images">Make PDF</string>
+    <string name="widget_name">PDFdoc</string>
+    <string name="widget_description">Scan, photos to PDF and recent documents</string>
+    <string name="widget_empty">Recent documents will appear here</string>
 </resources>

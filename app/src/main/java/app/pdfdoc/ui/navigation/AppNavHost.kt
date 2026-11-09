@@ -3,6 +3,8 @@ package app.pdfdoc.ui.navigation
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -17,14 +19,24 @@ import app.pdfdoc.ui.tools.ToolsScreen
 import app.pdfdoc.ui.viewer.ViewerScreen
 
 @Composable
-fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
+fun AppNavHost(incoming: Incoming?, onIncomingHandled: () -> Unit) {
     val nav = rememberNavController()
+    /** The home screen opens its file chooser when started from the "Open PDF" shortcut. */
+    var pickOnHome by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
 
-    LaunchedEffect(incomingUri) {
-        if (incomingUri != null) {
-            nav.navigate(ImportRoute(incomingUri.toString())) { launchSingleTop = true }
-            onIncomingHandled()
+    LaunchedEffect(incoming) {
+        when (incoming) {
+            null -> return@LaunchedEffect
+            is Incoming.Open -> nav.navigate(ImportRoute(incoming.uri.toString())) { launchSingleTop = true }
+            is Incoming.Images -> nav.navigate(ScanRoute(fromImages = true, images = incoming.uris.map(Uri::toString))) { popUpTo<HomeRoute>() }
+            Incoming.Scan -> nav.navigate(ScanRoute()) { popUpTo<HomeRoute>() }
+            Incoming.ImagesToPdf -> nav.navigate(ScanRoute(fromImages = true)) { popUpTo<HomeRoute>() }
+            Incoming.Pick -> {
+                nav.popBackStack<HomeRoute>(inclusive = false)
+                pickOnHome = true
+            }
         }
+        onIncomingHandled()
     }
 
     NavHost(navController = nav, startDestination = HomeRoute) {
@@ -40,6 +52,8 @@ fun AppNavHost(incomingUri: Uri?, onIncomingHandled: () -> Unit) {
                 onTextToPdf = { nav.navigate(TextToPdfRoute) },
                 onTools = { nav.navigate(ToolsRoute(it.toString())) },
                 onAsk = { uris -> nav.navigate(AskRoute(uris.map(Uri::toString))) },
+                openPicker = pickOnHome,
+                onPickerShown = { pickOnHome = false },
             )
         }
         composable<ViewerRoute> {
