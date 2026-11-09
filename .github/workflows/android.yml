@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,7 +20,10 @@ jobs:
         run: ./gradlew testDebugUnitTest
       - name: Build debug APK
         run: ./gradlew assembleDebug
+      # The APK is a convenience copy; a full artifact storage quota must not fail the build.
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: pdfdoc-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 3
