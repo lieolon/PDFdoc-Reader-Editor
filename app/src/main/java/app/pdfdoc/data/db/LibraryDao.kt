@@ -30,6 +30,9 @@ interface LibraryDao {
     @Query("DELETE FROM document_collections WHERE document_id = :documentId AND collection_id = :collectionId")
     suspend fun removeFromCollection(documentId: Long, collectionId: Long)
 
+    @Query("UPDATE documents SET is_secret = :secret WHERE id = :id")
+    suspend fun setSecret(id: Long, secret: Boolean)
+
     @Query("UPDATE documents SET is_favorite = :favorite WHERE id = :id")
     suspend fun setFavorite(id: Long, favorite: Boolean)
 

@@ -53,11 +53,12 @@ import app.pdfdoc.domain.repo.DocumentRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
 @HiltViewModel
 class RecentPdfsViewModel @Inject constructor(documents: DocumentRepository) : ViewModel() {
-    val recent = documents.observeRecent().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val recent = documents.observeRecent().map { list -> list.filterNot { it.isSecret } }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 /**

@@ -45,6 +45,7 @@ class DocumentRepositoryImpl @Inject constructor(
             lastPage = existing?.lastPage?.coerceIn(0, (pageCount - 1).coerceAtLeast(0)) ?: 0,
             thumbnailPath = existing?.thumbnailPath,
             isFavorite = existing?.isFavorite ?: false,
+            isSecret = existing?.isSecret ?: false,
         )
         val id = dao.upsert(entity).takeIf { it > 0 } ?: entity.id
         val thumbPath = thumb?.let { saveThumbnail(id, it) } ?: entity.thumbnailPath
@@ -87,4 +88,5 @@ private fun DocumentEntity.toDomain() = PdfDocument(
     lastPage = lastPage,
     thumbnailPath = thumbnailPath,
     isFavorite = isFavorite,
+    isSecret = isSecret,
 )

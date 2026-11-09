@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
@@ -265,6 +266,7 @@ class TextToPdfViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val files: FileStore,
     private val converter: TextToPdf,
+    private val templates: app.pdfdoc.data.convert.DocumentTemplates,
     private val documents: DocumentRepository,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
@@ -279,6 +281,27 @@ class TextToPdfViewModel @Inject constructor(
     fun pick(uri: Uri) {
         source = uri
         viewModelScope.launch { sourceName.value = withContext(io) { runCatching { files.query(uri).name }.getOrDefault("") } }
+    }
+
+    /** Writes a fillable [template] to [target]; the screen then opens it for filling in. */
+    fun createTemplate(template: app.pdfdoc.data.convert.DocumentTemplate, target: Uri) {
+        viewModelScope.launch {
+            busy.value = true
+            val ok = runCatching {
+                withContext(io) {
+                    val out = files.newWorkFile()
+                    try {
+                        templates.create(template, out)
+                        files.writeTo(target, out)
+                        runCatching { documents.recordOpened(target, out) }
+                    } finally {
+                        out.delete()
+                    }
+                }
+            }.isSuccess
+            busy.value = false
+            _events.send(if (ok) target else null)
+        }
     }
 
     fun convert(format: SourceFormat, target: Uri) {
@@ -323,6 +346,11 @@ fun TextToPdfScreen(onBack: () -> Unit, onOpenDocument: (Uri) -> Unit, viewModel
         }
     }
     val save = app.pdfdoc.ui.common.rememberCreateDocument("application/pdf") { uri -> uri?.let { viewModel.convert(format, it) } }
+    var template by remember { mutableStateOf<app.pdfdoc.data.convert.DocumentTemplate?>(null) }
+    val saveTemplate = app.pdfdoc.ui.common.rememberCreateDocument("application/pdf") { uri ->
+        val t = template
+        if (uri != null && t != null) viewModel.createTemplate(t, uri)
+    }
     LaunchedEffect(Unit) {
         viewModel.events.collect { uri ->
             if (uri != null) onOpenDocument(uri) else snackbar.showSnackbar(context.getString(R.string.error_save))
@@ -338,7 +366,7 @@ fun TextToPdfScreen(onBack: () -> Unit, onOpenDocument: (Uri) -> Unit, viewModel
         },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(16.dp)) {
                 Text(stringResource(R.string.text_to_pdf_intro), style = MaterialTheme.typography.bodyMedium)
                 OutlinedButton(onClick = { pick.launch(arrayOf("text/*", "application/octet-stream")) }, modifier = Modifier.padding(top = 12.dp)) {
                     Text(if (name.isEmpty()) stringResource(R.string.text_to_pdf_pick) else name, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -354,6 +382,23 @@ fun TextToPdfScreen(onBack: () -> Unit, onOpenDocument: (Uri) -> Unit, viewModel
                     enabled = name.isNotEmpty() && !busy,
                     modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
                 ) { Text(stringResource(R.string.text_to_pdf_create)) }
+                Text(
+                    stringResource(R.string.tpl_section),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 28.dp, bottom = 4.dp),
+                )
+                Text(stringResource(R.string.tpl_section_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                app.pdfdoc.data.convert.DocumentTemplate.entries.forEach { t ->
+                    val title = stringResource(t.title)
+                    androidx.compose.material3.ListItem(
+                        headlineContent = { Text(title) },
+                        supportingContent = { Text(stringResource(t.description)) },
+                        leadingContent = { Icon(Icons.Default.Description, null, tint = MaterialTheme.colorScheme.primary) },
+                        colors = androidx.compose.material3.ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+                        modifier = Modifier.clickable { template = t; saveTemplate.launch("$title.pdf") },
+                    )
+                }
             }
             if (busy) BusyOverlay(stringResource(R.string.working))
         }

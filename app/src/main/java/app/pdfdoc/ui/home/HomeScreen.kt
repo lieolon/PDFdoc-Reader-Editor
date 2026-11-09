@@ -115,6 +115,11 @@ fun HomeScreen(
         focusManager.clearFocus()
     }
     var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
+    val context = LocalContext.current
+    // The secret folder locks again whenever the app goes to the background.
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) {
+        if (state.filter == LibraryFilter.Secret) viewModel.setFilter(LibraryFilter.All)
+    }
     var membershipFor by remember { mutableStateOf<PdfDocument?>(null) }
 
     Scaffold(
@@ -204,6 +209,14 @@ fun HomeScreen(
                         onFilter = viewModel::setFilter,
                         onNewFolder = { folderDialog = FolderDialog.Create(null) },
                         onManage = { id -> state.folders.firstOrNull { it.id == id }?.let { folderDialog = FolderDialog.Manage(it) } },
+                        onSecret = {
+                            val activity = context as? androidx.fragment.app.FragmentActivity
+                            if (activity == null || !app.pdfdoc.ui.lock.AppLock.available(context)) {
+                                android.widget.Toast.makeText(context, R.string.secret_needs_lock, android.widget.Toast.LENGTH_LONG).show()
+                            } else {
+                                app.pdfdoc.ui.lock.AppLock.prompt(activity) { viewModel.setFilter(LibraryFilter.Secret) }
+                            }
+                        },
                     )
                 }
                 item {
@@ -224,7 +237,10 @@ fun HomeScreen(
                     )
                 }
                 state.documents.isEmpty() && state.textHits.isEmpty() -> item {
-                    MessageView(stringResource(R.string.home_nothing_found), modifier = Modifier.padding(top = 48.dp))
+                    MessageView(
+                        stringResource(if (state.filter == LibraryFilter.Secret) R.string.secret_empty else R.string.home_nothing_found),
+                        modifier = Modifier.padding(top = 48.dp),
+                    )
                 }
                 else -> items(state.documents, key = { it.id }) { doc ->
                     DocumentRow(
@@ -233,6 +249,7 @@ fun HomeScreen(
                         onRemove = { viewModel.remove(doc.id) },
                         onFavorite = { viewModel.toggleFavorite(doc) },
                         onFolders = { membershipFor = doc },
+                        onSecret = { viewModel.setSecret(doc, !doc.isSecret) },
                     )
                 }
             }
@@ -334,7 +351,7 @@ private fun SortMenu(expanded: Boolean, current: SortOrder, onDismiss: () -> Uni
 }
 
 @Composable
-private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> Unit, onFavorite: () -> Unit, onFolders: () -> Unit) {
+private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> Unit, onFavorite: () -> Unit, onFolders: () -> Unit, onSecret: () -> Unit) {
     val thumb by rememberFileBitmap(doc.thumbnailPath)
     var menu by remember { mutableStateOf(false) }
     ListItem(
@@ -380,6 +397,10 @@ private fun DocumentRow(doc: PdfDocument, onClick: () -> Unit, onRemove: () -> U
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_folders)) },
                         onClick = { menu = false; onFolders() },
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(if (doc.isSecret) R.string.secret_remove else R.string.secret_add)) },
+                        onClick = { menu = false; onSecret() },
                     )
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.home_remove_from_list)) },

@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -40,7 +41,7 @@ sealed interface FolderDialog {
 }
 
 @Composable
-fun FilterRow(state: HomeUiState, onFilter: (LibraryFilter) -> Unit, onNewFolder: () -> Unit, onManage: (Long) -> Unit) {
+fun FilterRow(state: HomeUiState, onFilter: (LibraryFilter) -> Unit, onNewFolder: () -> Unit, onManage: (Long) -> Unit, onSecret: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -63,6 +64,12 @@ fun FilterRow(state: HomeUiState, onFilter: (LibraryFilter) -> Unit, onNewFolder
                 trailingIcon = if (selected) ({ Icon(Icons.Default.Edit, stringResource(R.string.folder_manage), Modifier.clickable { onManage(folder.id) }) }) else null,
             )
         }
+        FilterChip(
+            selected = state.filter == LibraryFilter.Secret,
+            onClick = { if (state.filter == LibraryFilter.Secret) onFilter(LibraryFilter.All) else onSecret() },
+            label = { Text(stringResource(R.string.secret_folder)) },
+            leadingIcon = { Icon(Icons.Default.Lock, null) },
+        )
         AssistChip(onClick = onNewFolder, label = { Text(stringResource(R.string.folder_new)) }, leadingIcon = { Icon(Icons.Default.Add, null) })
     }
 }

@@ -8,7 +8,7 @@ import androidx.room.RoomDatabase
         DocumentEntity::class, BookmarkEntity::class, SignatureEntity::class,
         CollectionEntity::class, DocumentCollectionEntity::class, DocumentTextEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -18,6 +18,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun libraryDao(): LibraryDao
 
     companion object {
+        /** Version 3 adds the secret folder flag. */
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `documents` ADD COLUMN `is_secret` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** Version 2 adds folders and the full-text search table. */
         val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {

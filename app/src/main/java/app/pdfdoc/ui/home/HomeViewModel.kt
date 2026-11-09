@@ -24,6 +24,8 @@ sealed interface LibraryFilter {
     data object All : LibraryFilter
     data object Favorites : LibraryFilter
     data class Folder(val id: Long) : LibraryFilter
+    /** Files hidden behind the screen lock; shown only after unlocking. */
+    data object Secret : LibraryFilter
 }
 
 data class HomeUiState(
@@ -37,6 +39,7 @@ data class HomeUiState(
     val membership: Map<Long, Set<Long>> = emptyMap(),
     /** Documents found by their content, with a snippet. */
     val textHits: List<Pair<PdfDocument, String>> = emptyList(),
+    val secretCount: Int = 0,
 )
 
 @HiltViewModel
@@ -67,16 +70,19 @@ class HomeViewModel @Inject constructor(
             membership,
             textHits,
         ) { all, inputs, folders, members, hits ->
+            val open = all.filterNot { it.isSecret }
             val scoped = when (val f = inputs.filter) {
-                LibraryFilter.All -> all
-                LibraryFilter.Favorites -> all.filter { it.isFavorite }
-                is LibraryFilter.Folder -> all.filter { f.id in members[it.id].orEmpty() }
+                LibraryFilter.All -> open
+                LibraryFilter.Favorites -> open.filter { it.isFavorite }
+                is LibraryFilter.Folder -> open.filter { f.id in members[it.id].orEmpty() }
+                LibraryFilter.Secret -> all.filter { it.isSecret }
             }
             val byName = filterAndSort(scoped, inputs.q, inputs.sort)
             val byId = scoped.associateBy { it.id }
             HomeUiState(
                 documents = byName,
                 hasAnyDocuments = all.isNotEmpty(),
+                secretCount = all.count { it.isSecret },
                 query = inputs.q,
                 sortOrder = inputs.sort,
                 filter = inputs.filter,
@@ -88,6 +94,10 @@ class HomeViewModel @Inject constructor(
 
     fun setFilter(f: LibraryFilter) {
         filter.value = f
+    }
+
+    fun setSecret(doc: PdfDocument, secret: Boolean) {
+        viewModelScope.launch { library.setSecret(doc.id, secret) }
     }
 
     fun toggleFavorite(doc: PdfDocument) {

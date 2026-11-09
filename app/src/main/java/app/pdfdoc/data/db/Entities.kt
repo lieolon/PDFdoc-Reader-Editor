@@ -17,6 +17,8 @@ data class DocumentEntity(
     @ColumnInfo(name = "last_page") val lastPage: Int = 0,
     @ColumnInfo(name = "thumbnail_path") val thumbnailPath: String? = null,
     @ColumnInfo(name = "is_favorite") val isFavorite: Boolean = false,
+    /** Kept in the secret folder: hidden from the library until unlocked. */
+    @ColumnInfo(name = "is_secret", defaultValue = "0") val isSecret: Boolean = false,
 )
 
 @Entity(
