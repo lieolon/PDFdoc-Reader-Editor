@@ -675,4 +675,6 @@
     <string name="widget_name">PDFdoc</string>
     <string name="widget_description">Сканер, фото в PDF и последние документы</string>
     <string name="widget_empty">Здесь появятся последние документы</string>
+    <string name="import_sheet">Лист %1$d</string>
+    <string name="import_slide">Слайд %1$d</string>
 </resources>

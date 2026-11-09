@@ -9,7 +9,7 @@ import java.nio.charset.CodingErrorAction
 import java.util.zip.ZipInputStream
 
 /** Files other than PDF that open in the viewer after being converted to PDF. */
-enum class ImportFormat { TEXT, MARKDOWN, HTML, IMAGE, DOCX, ODT, EPUB, FB2, RTF }
+enum class ImportFormat { TEXT, MARKDOWN, HTML, IMAGE, DOCX, ODT, XLSX, PPTX, EPUB, FB2, RTF }
 
 object ImportFormats {
     /** MIME types offered by the "Open" file picker and accepted from other apps. */
@@ -19,6 +19,8 @@ object ImportFormats {
         "image/*",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.oasis.opendocument.text",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         "application/epub+zip",
         "application/rtf",
         "application/x-fictionbook+xml",
@@ -43,6 +45,8 @@ object ImportFormats {
             ext == "html" || ext == "htm" || ext == "xhtml" || type == "text/html" || type == "application/xhtml+xml" -> ImportFormat.HTML
             ext == "docx" || type.endsWith("wordprocessingml.document") -> ImportFormat.DOCX
             ext == "odt" || type == "application/vnd.oasis.opendocument.text" -> ImportFormat.ODT
+            ext == "xlsx" || type.endsWith("spreadsheetml.sheet") -> ImportFormat.XLSX
+            ext == "pptx" || type.endsWith("presentationml.presentation") -> ImportFormat.PPTX
             ext == "epub" || type == "application/epub+zip" -> ImportFormat.EPUB
             ext == "fb2" || type.startsWith("application/x-fictionbook") -> ImportFormat.FB2
             ext == "rtf" || type == "application/rtf" || type == "text/rtf" -> ImportFormat.RTF
@@ -227,6 +231,113 @@ object OfficeText {
     fun docx(zip: ByteArray): List<TextBlock> = docxXml(String(entry(zip, "word/document.xml") ?: error("Not a DOCX file"), Charsets.UTF_8))
 
     fun odt(zip: ByteArray): List<TextBlock> = odtXml(String(entry(zip, "content.xml") ?: error("Not an ODT file"), Charsets.UTF_8))
+
+    /**
+     * Excel workbook: a heading per sheet and one monospaced line per row, cells separated by " | ".
+     * Formulas show their last calculated value, as Excel saved it.
+     */
+    fun xlsx(zip: ByteArray, sheetLabel: (Int) -> String = { "Sheet $it" }): List<TextBlock> {
+        val files = entries(zip)
+        val shared = files["xl/sharedStrings.xml"]?.let { sharedStrings(String(it, Charsets.UTF_8)) }.orEmpty()
+        val names = files["xl/workbook.xml"]?.let { wb ->
+            Markup.tokens(String(wb, Charsets.UTF_8)).filterIsInstance<Markup.Tag>().filter { it.name == "sheet" && !it.closing }
+                .mapNotNull { it.attrs["name"] }
+        }.orEmpty()
+        val sheets = files.keys.filter { it.startsWith("xl/worksheets/sheet") && it.endsWith(".xml") }
+            .sortedBy { it.removePrefix("xl/worksheets/sheet").removeSuffix(".xml").toIntOrNull() ?: Int.MAX_VALUE }
+        if (sheets.isEmpty()) error("Not an XLSX file")
+        val out = mutableListOf<TextBlock>()
+        sheets.forEachIndexed { i, name ->
+            val rows = sheetRows(String(files.getValue(name), Charsets.UTF_8), shared)
+            if (rows.isEmpty()) return@forEachIndexed
+            out += TextBlock(names.getOrNull(i) ?: sheetLabel(i + 1), heading = 2)
+            rows.forEach { out += TextBlock(it.joinToString(" | ").trimEnd(' ', '|'), code = true) }
+        }
+        return out
+    }
+
+    private fun sharedStrings(xml: String): List<String> {
+        val list = mutableListOf<String>()
+        val current = StringBuilder()
+        var inText = false
+        for (t in Markup.tokens(xml)) when (t) {
+            is Markup.Text -> if (inText) current.append(Markup.decode(t.text))
+            is Markup.Tag -> when (t.name) {
+                "t" -> inText = !t.closing && !t.selfClosing
+                "si" -> if (t.closing) { list += current.toString(); current.clear() } else current.clear()
+            }
+        }
+        return list
+    }
+
+    private fun sheetRows(xml: String, shared: List<String>): List<List<String>> {
+        val rows = mutableListOf<List<String>>()
+        var row = sortedMapOf<Int, String>()
+        var col = 0
+        var type = ""
+        var inValue = false
+        val value = StringBuilder()
+        for (t in Markup.tokens(xml)) when (t) {
+            is Markup.Text -> if (inValue) value.append(Markup.decode(t.text))
+            is Markup.Tag -> when (t.name) {
+                "row" -> if (t.closing) {
+                    if (row.values.any { it.isNotBlank() }) {
+                        val last = row.lastKey()
+                        rows += (0..last).map { row[it].orEmpty() }
+                    }
+                    row = sortedMapOf()
+                } else if (!t.selfClosing) row = sortedMapOf()
+                "c" -> if (!t.closing) {
+                    col = column(t.attrs["r"].orEmpty()) ?: (row.keys.maxOrNull()?.plus(1) ?: 0)
+                    type = t.attrs["t"].orEmpty()
+                    value.clear()
+                } else {
+                    val raw = value.toString()
+                    row[col] = when (type) {
+                        "s" -> raw.trim().toIntOrNull()?.let { shared.getOrNull(it) }.orEmpty()
+                        "b" -> if (raw.trim() == "1") "TRUE" else "FALSE"
+                        else -> raw
+                    }
+                }
+                "v", "t" -> { inValue = !t.closing && !t.selfClosing }
+            }
+        }
+        return rows
+    }
+
+    /** "B12" -> 1 (zero-based column). */
+    private fun column(ref: String): Int? {
+        val letters = ref.takeWhile { it.isLetter() }.uppercase()
+        if (letters.isEmpty()) return null
+        return letters.fold(0) { acc, c -> acc * 26 + (c - 'A' + 1) } - 1
+    }
+
+    /** PowerPoint: a heading per slide, then its text paragraphs in order. */
+    fun pptx(zip: ByteArray, slideLabel: (Int) -> String = { "Slide $it" }): List<TextBlock> {
+        val files = entries(zip)
+        val slides = files.keys.filter { it.startsWith("ppt/slides/slide") && it.endsWith(".xml") }
+            .sortedBy { it.removePrefix("ppt/slides/slide").removeSuffix(".xml").toIntOrNull() ?: Int.MAX_VALUE }
+        if (slides.isEmpty()) error("Not a PPTX file")
+        val out = mutableListOf<TextBlock>()
+        slides.forEachIndexed { i, name ->
+            out += TextBlock(slideLabel(i + 1), heading = 2)
+            val b = BlockBuilder(collapse = false)
+            var inText = false
+            for (t in Markup.tokens(String(files.getValue(name), Charsets.UTF_8))) when (t) {
+                is Markup.Text -> if (inText) b.append(t.text)
+                is Markup.Tag -> when (t.name) {
+                    "a:p" -> if (t.closing || t.selfClosing) b.flush()
+                    "a:t" -> inText = !t.closing && !t.selfClosing
+                    "a:br" -> if (!t.closing) b.lineBreak()
+                    "a:bunone" -> Unit
+                    "a:buchar", "a:buautonum" -> if (!t.closing) b.bullet = true
+                }
+            }
+            b.flush()
+            out += b.blocks
+        }
+        return out
+    }
 
     fun docxXml(xml: String): List<TextBlock> {
         val b = BlockBuilder(collapse = false)

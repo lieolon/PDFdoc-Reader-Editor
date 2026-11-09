@@ -69,6 +69,8 @@ class DocumentImporter @Inject constructor(
             ImportFormat.HTML -> HtmlText.blocks(TextDecoding.decode(bytes)) to null
             ImportFormat.DOCX -> OfficeText.docx(bytes) to null
             ImportFormat.ODT -> OfficeText.odt(bytes) to null
+            ImportFormat.XLSX -> OfficeText.xlsx(bytes) { context.getString(app.pdfdoc.R.string.import_sheet, it) } to null
+            ImportFormat.PPTX -> OfficeText.pptx(bytes) { context.getString(app.pdfdoc.R.string.import_slide, it) } to null
             ImportFormat.RTF -> RtfText.blocks(TextDecoding.decode(bytes)) to null
             ImportFormat.EPUB -> BookText.epub(bytes).let { it.blocks to it.title }
             ImportFormat.FB2 -> BookText.fb2(TextDecoding.decode(bytes)).let { it.blocks to it.title }

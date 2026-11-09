@@ -675,4 +675,6 @@
     <string name="widget_name">PDFdoc</string>
     <string name="widget_description">Scan, photos to PDF and recent documents</string>
     <string name="widget_empty">Recent documents will appear here</string>
+    <string name="import_sheet">Sheet %1$d</string>
+    <string name="import_slide">Slide %1$d</string>
 </resources>
