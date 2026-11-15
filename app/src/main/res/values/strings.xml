@@ -692,4 +692,10 @@
     <string name="bar_move_down">Move down</string>
     <string name="bar_more">More</string>
     <string name="bar_customize">Customize</string>
+    <string name="tips_title">Tip the developer</string>
+    <string name="tips_text">PDFdoc is free, without ads or subscriptions, and every feature stays free. If the app helps you, you can leave a tip — it is optional and unlocks nothing.</string>
+    <string name="tips_unavailable">Tips are paid through Google Play and are not available right now.</string>
+    <string name="tips_thanks">Thank you for your support! ♥</string>
+    <string name="tips_pending">The payment is pending. Thank you!</string>
+    <string name="tips_failed">The payment didn\'t go through. Please try again later.</string>
 </resources>

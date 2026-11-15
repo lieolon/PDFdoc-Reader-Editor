@@ -3,3 +3,4 @@
 • New Hand tool to scroll with one finger
 • Customizable tool bar: order, "More" for extra tools, recent tools first
 • One page at a time is still in the menu
+• Optional tips to the developer in Settings; every feature stays free

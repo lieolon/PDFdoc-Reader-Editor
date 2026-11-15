@@ -17,7 +17,7 @@ android {
         applicationId = "app.pdfdoc"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
+        versionCode = 11
         versionName = "1.3.1"
     }
 
@@ -99,6 +99,7 @@ dependencies {
     implementation(libs.camera.view)
     implementation(libs.tesseract)
     implementation(libs.zxing.core)
+    implementation(libs.billing.ktx)
     implementation(libs.androidx.documentfile)
     implementation(libs.work.runtime)
     implementation(libs.hilt.work)

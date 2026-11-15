@@ -692,4 +692,10 @@
     <string name="bar_move_down">Ниже</string>
     <string name="bar_more">Ещё</string>
     <string name="bar_customize">Настроить</string>
+    <string name="tips_title">Чаевые разработчику</string>
+    <string name="tips_text">PDFdoc бесплатный, без рекламы и подписок, и все функции остаются бесплатными. Если приложение вам помогает, можно оставить чаевые — это по желанию и ничего не открывает.</string>
+    <string name="tips_unavailable">Чаевые оплачиваются через Google Play и сейчас недоступны.</string>
+    <string name="tips_thanks">Спасибо за поддержку! ♥</string>
+    <string name="tips_pending">Платёж ожидает подтверждения. Спасибо!</string>
+    <string name="tips_failed">Не удалось оплатить. Попробуйте позже.</string>
 </resources>

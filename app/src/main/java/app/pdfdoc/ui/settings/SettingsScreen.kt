@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.pdfdoc.R
+import app.pdfdoc.ui.common.findActivity
 import app.pdfdoc.domain.model.ThemeMode
 import app.pdfdoc.domain.tools.CompressLevel
 import app.pdfdoc.ui.common.rememberCreateDocument
@@ -90,6 +91,21 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { it?.let(viewModel::importSettings) }
 
     LaunchedEffect(Unit) { viewModel.messages.collect { snackbar.showSnackbar(context.getString(it)) } }
+    val tips by viewModel.tipJar.state.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.tipJar.load() }
+    LaunchedEffect(Unit) {
+        viewModel.tipJar.events.collect { e ->
+            snackbar.showSnackbar(
+                context.getString(
+                    when (e) {
+                        app.pdfdoc.data.billing.TipEvent.THANKS -> R.string.tips_thanks
+                        app.pdfdoc.data.billing.TipEvent.PENDING -> R.string.tips_pending
+                        app.pdfdoc.data.billing.TipEvent.FAILED -> R.string.tips_failed
+                    },
+                ),
+            )
+        }
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -155,6 +171,37 @@ fun SettingsScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltViewMo
                 exportLauncher.launch("pdfdoc-settings.json")
             }
             Item(Icons.Default.Download, R.string.settings_import, null) { importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream")) }
+
+            Section(R.string.tips_title)
+            Text(
+                stringResource(R.string.tips_text),
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+            when (val t = tips) {
+                app.pdfdoc.data.billing.TipJarState.Loading -> androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth().padding(16.dp))
+                app.pdfdoc.data.billing.TipJarState.Unavailable -> Text(
+                    stringResource(R.string.tips_unavailable),
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+                is app.pdfdoc.data.billing.TipJarState.Ready -> androidx.compose.foundation.layout.Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
+                ) {
+                    val activity = context.findActivity()
+                    t.tips.forEachIndexed { i, tip ->
+                        androidx.compose.material3.OutlinedButton(
+                            onClick = { activity?.let { viewModel.tipJar.give(it, tip) } },
+                            modifier = Modifier.weight(1f),
+                        ) {
+                            Text(listOf("☕", "🍰", "🎁").getOrElse(i) { "♥" } + " " + tip.price, maxLines = 1)
+                        }
+                    }
+                }
+            }
 
             Section(R.string.settings_section_about)
             ListItem(

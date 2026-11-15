@@ -33,6 +33,7 @@ enum class AppLanguage(val tag: String) { SYSTEM(""), RUSSIAN("ru"), ENGLISH("en
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val settings: SettingsRepository,
+    val tipJar: app.pdfdoc.data.billing.TipJar,
     private val files: FileStore,
     @IoDispatcher private val io: CoroutineDispatcher,
 ) : ViewModel() {
