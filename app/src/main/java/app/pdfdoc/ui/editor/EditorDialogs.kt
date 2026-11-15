@@ -53,6 +53,7 @@ fun ToolHint(state: EditorUiState, onScale: () -> Unit, viewModel: EditorViewMod
         Tool.ERASER -> R.string.hint_eraser
         Tool.SMART_PEN -> R.string.hint_smart_pen
         Tool.LASSO -> if (state.group.isEmpty()) R.string.lasso_hint else return
+        Tool.HAND -> R.string.hint_hand
         Tool.MEASURE_DISTANCE -> R.string.hint_measure
         Tool.MEASURE_AREA -> R.string.hint_measure_area
         else -> return

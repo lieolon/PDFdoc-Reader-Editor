@@ -37,6 +37,10 @@ class SettingsRepository @Inject constructor(
     private val readerThemeKey = stringPreferencesKey("reader_theme")
     private val readerSerifKey = androidx.datastore.preferences.core.booleanPreferencesKey("reader_serif")
     private val measureKey = stringPreferencesKey("measure_scale")
+    private val editorStripKey = androidx.datastore.preferences.core.booleanPreferencesKey("editor_strip")
+    private val editorBarKey = stringPreferencesKey("editor_bar")
+    private val editorRecentKey = stringPreferencesKey("editor_recent")
+    private val editorShowRecentKey = androidx.datastore.preferences.core.booleanPreferencesKey("editor_show_recent")
 
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         prefs[themeKey]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.SYSTEM
@@ -93,6 +97,20 @@ class SettingsRepository @Inject constructor(
         it[readerThemeKey] = theme
         it[readerSerifKey] = serif
     }
+
+    /** Editor pages one under another (true) or one at a time. */
+    val editorStrip: Flow<Boolean> = context.dataStore.data.map { it[editorStripKey] ?: true }
+    suspend fun setEditorStrip(on: Boolean) = context.dataStore.edit { it[editorStripKey] = on }
+
+    /** Editor tool bar as "ITEM,ITEM,-HIDDEN,…": order of the items, hidden ones prefixed with "-". Empty: default. */
+    val editorBar: Flow<String> = context.dataStore.data.map { it[editorBarKey].orEmpty() }
+    suspend fun setEditorBar(raw: String) = context.dataStore.edit { if (raw.isEmpty()) it.remove(editorBarKey) else it[editorBarKey] = raw }
+
+    /** Recently used editor tools, most recent first, comma separated. */
+    val editorRecent: Flow<String> = context.dataStore.data.map { it[editorRecentKey].orEmpty() }
+    suspend fun setEditorRecent(raw: String) = context.dataStore.edit { it[editorRecentKey] = raw }
+    val editorShowRecent: Flow<Boolean> = context.dataStore.data.map { it[editorShowRecentKey] ?: true }
+    suspend fun setEditorShowRecent(on: Boolean) = context.dataStore.edit { it[editorShowRecentKey] = on }
 
     /** Last measuring scale as "value|unit": [value] units per centimeter on paper. */
     val measureScale: Flow<String> = context.dataStore.data.map { it[measureKey] ?: "1|cm" }

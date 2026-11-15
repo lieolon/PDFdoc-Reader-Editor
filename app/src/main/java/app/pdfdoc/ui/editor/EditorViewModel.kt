@@ -65,7 +65,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 enum class Tool {
-    SELECT, LASSO, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, SMART_PEN, ERASER, RECT, OVAL, LINE, ARROW, TEXT, NOTE,
+    SELECT, HAND, LASSO, HIGHLIGHT, UNDERLINE, STRIKEOUT, REPLACE, PEN, SMART_PEN, ERASER, RECT, OVAL, LINE, ARROW, TEXT, NOTE,
     REDACT, LINK, FIELD, MEASURE_DISTANCE, MEASURE_AREA, IMAGE_EDIT,
 }
 
@@ -145,6 +145,11 @@ data class EditorUiState(
     val scale: MeasureScale = MeasureScale(),
     val customStamps: List<String> = emptyList(),
     val author: String = "",
+    /** Pages one under another instead of one at a time. */
+    val strip: Boolean = true,
+    val bar: BarLayout = BarLayout(),
+    val recent: List<BarItem> = emptyList(),
+    val showRecent: Boolean = true,
 ) {
     val selected: Edit? get() = edits.firstOrNull { it.id == selectedId }
     val grouped: List<Edit> get() = edits.filter { it.id in group }
@@ -236,6 +241,21 @@ class EditorViewModel @Inject constructor(
         viewModelScope.launch {
             settings.authorName.collect { name -> _state.update { it.copy(author = name) } }
         }
+        viewModelScope.launch {
+            settings.editorStrip.collect { on -> _state.update { it.copy(strip = on) } }
+        }
+        viewModelScope.launch {
+            settings.editorBar.collect { raw -> _state.update { it.copy(bar = BarLayout.decode(raw)) } }
+        }
+        viewModelScope.launch {
+            settings.editorRecent.collect { raw ->
+                val items = raw.split(',').mapNotNull { n -> BarItem.entries.firstOrNull { it.name == n } }
+                _state.update { it.copy(recent = items) }
+            }
+        }
+        viewModelScope.launch {
+            settings.editorShowRecent.collect { on -> _state.update { it.copy(showRecent = on) } }
+        }
     }
 
     /** Re-renders pages after the working copy changed underneath (saved redactions, detached images). */
@@ -287,7 +307,37 @@ class EditorViewModel @Inject constructor(
         it.copy(page = page.coerceIn(0, (it.pageSizes.size - 1).coerceAtLeast(0)), selectedId = null)
     }
 
-    fun selectTool(tool: Tool) = _state.update { it.copy(tool = tool, selectedId = null, group = emptySet(), vertices = emptyList()) }
+    /** The page shown in the middle of the page strip; keeps the selection, unlike [goToPage]. */
+    fun showPage(page: Int) {
+        if (page != state.value.page) _state.update { it.copy(page = page.coerceIn(0, (it.pageSizes.size - 1).coerceAtLeast(0))) }
+    }
+
+    fun selectTool(tool: Tool) {
+        _state.update { it.copy(tool = tool, selectedId = null, group = emptySet(), vertices = emptyList()) }
+        BarItem.of(tool)?.let(::used)
+    }
+
+    // region Bar and layout
+
+    /** Remembers [item] as recently used, for the "Recent" group at the start of the bar. */
+    fun used(item: BarItem) {
+        if (item == BarItem.SELECT || item == BarItem.HAND) return
+        val list = (listOf(item) + state.value.recent.filterNot { it == item }).take(RECENT_COUNT)
+        if (list == state.value.recent) return
+        _state.update { it.copy(recent = list) }
+        viewModelScope.launch { settings.setEditorRecent(list.joinToString(",") { it.name }) }
+    }
+
+    fun setBar(layout: BarLayout) {
+        _state.update { it.copy(bar = layout) }
+        viewModelScope.launch { settings.setEditorBar(layout.encode()) }
+    }
+
+    fun setShowRecent(on: Boolean) = viewModelScope.launch { settings.setEditorShowRecent(on) }
+
+    fun setStrip(on: Boolean) = viewModelScope.launch { settings.setEditorStrip(on) }
+
+    // endregion
 
     // region Lasso
 
@@ -928,3 +978,5 @@ class EditorViewModel @Inject constructor(
         imageDir.deleteRecursively()
     }
 }
+
+private const val RECENT_COUNT = 4

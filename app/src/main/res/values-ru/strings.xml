@@ -678,4 +678,18 @@
     <string name="import_sheet">Лист %1$d</string>
     <string name="import_slide">Слайд %1$d</string>
     <string name="secret_all_hidden">Все ваши файлы в секретной папке. Нажмите «Секретная», чтобы их увидеть.</string>
+    <string name="tool_hand">Рука</string>
+    <string name="hint_hand">Перетаскивайте, чтобы листать и двигать страницу. Двумя пальцами можно листать и приближать с любым инструментом.</string>
+    <string name="editor_pages_strip">Страницы лентой</string>
+    <string name="editor_pages_single">Страницы по одной</string>
+    <string name="bar_settings">Настроить панель инструментов</string>
+    <string name="bar_settings_hint">Переставляйте инструменты стрелками. Выключенные инструменты остаются под кнопкой «Ещё». Сюда можно попасть долгим нажатием на любой инструмент.</string>
+    <string name="bar_reset">Как было</string>
+    <string name="bar_recent">Сначала последние</string>
+    <string name="bar_recent_hint">4 последних инструмента в начале панели</string>
+    <string name="bar_in_more">Под кнопкой «Ещё»</string>
+    <string name="bar_move_up">Выше</string>
+    <string name="bar_move_down">Ниже</string>
+    <string name="bar_more">Ещё</string>
+    <string name="bar_customize">Настроить</string>
 </resources>

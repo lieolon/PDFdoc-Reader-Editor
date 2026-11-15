@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -88,6 +89,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.height
+import androidx.compose.material.icons.filled.CropPortrait
+import androidx.compose.material.icons.filled.ViewDay
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,31 +128,6 @@ private sealed interface TextPrompt {
     data object CustomStamp : TextPrompt
 }
 
-private data class ToolItem(val tool: Tool, val icon: ImageVector, val label: Int)
-
-private val Tools = listOf(
-    ToolItem(Tool.SELECT, Icons.Default.TouchApp, R.string.tool_select),
-    ToolItem(Tool.LASSO, Icons.Default.HighlightAlt, R.string.tool_lasso),
-    ToolItem(Tool.HIGHLIGHT, Icons.Default.BorderColor, R.string.tool_highlight),
-    ToolItem(Tool.UNDERLINE, Icons.Default.FormatUnderlined, R.string.tool_underline),
-    ToolItem(Tool.STRIKEOUT, Icons.Default.FormatStrikethrough, R.string.tool_strikeout),
-    ToolItem(Tool.REPLACE, Icons.Default.FindReplace, R.string.tool_replace),
-    ToolItem(Tool.PEN, Icons.Default.Draw, R.string.tool_pen),
-    ToolItem(Tool.SMART_PEN, Icons.Default.AutoFixHigh, R.string.tool_smart_pen),
-    ToolItem(Tool.ERASER, Icons.Default.CleaningServices, R.string.tool_eraser),
-    ToolItem(Tool.RECT, Icons.Default.CropSquare, R.string.tool_rect),
-    ToolItem(Tool.OVAL, Icons.Default.RadioButtonUnchecked, R.string.tool_oval),
-    ToolItem(Tool.LINE, Icons.Default.HorizontalRule, R.string.tool_line),
-    ToolItem(Tool.ARROW, Icons.AutoMirrored.Filled.ArrowForward, R.string.tool_arrow),
-    ToolItem(Tool.TEXT, Icons.Default.TextFields, R.string.tool_text),
-    ToolItem(Tool.NOTE, Icons.Default.EditNote, R.string.tool_note),
-    ToolItem(Tool.REDACT, Icons.Default.VisibilityOff, R.string.tool_redact),
-    ToolItem(Tool.LINK, Icons.Default.Link, R.string.tool_link),
-    ToolItem(Tool.MEASURE_DISTANCE, Icons.Default.Straighten, R.string.tool_measure),
-    ToolItem(Tool.MEASURE_AREA, Icons.Default.SquareFoot, R.string.tool_measure_area),
-    ToolItem(Tool.IMAGE_EDIT, Icons.Default.ImageSearch, R.string.tool_image_edit),
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
@@ -166,6 +147,9 @@ fun EditorScreen(
     var menu by remember { mutableStateOf(false) }
     var confirmExit by remember { mutableStateOf(false) }
     var pageText by remember { mutableStateOf<PageText?>(null) }
+    var barSettings by remember { mutableStateOf(false) }
+    var moreTools by remember { mutableStateOf(false) }
+    val stripState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = rememberCoroutineScope()
 
     val textPaint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { typeface = viewModel.typeface } }
@@ -235,6 +219,16 @@ fun EditorScreen(
                                 text = { Text(stringResource(R.string.save_as)) },
                                 onClick = { menu = false; saveAs.launch(state.name) },
                             )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(if (state.strip) R.string.editor_pages_single else R.string.editor_pages_strip)) },
+                                leadingIcon = { Icon(if (state.strip) Icons.Default.CropPortrait else Icons.Default.ViewDay, null) },
+                                onClick = { menu = false; viewModel.setStrip(!state.strip) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.bar_settings)) },
+                                leadingIcon = { Icon(Icons.Default.Tune, null) },
+                                onClick = { menu = false; barSettings = true },
+                            )
                         }
                     }
                 },
@@ -260,41 +254,80 @@ fun EditorScreen(
                     ToolHint(state, onScale = { scaleDialog = true }, viewModel = viewModel)
                     StyleBar(state, viewModel)
                     HorizontalDivider()
-                    LazyRow(contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        items(Tools) { item ->
-                            ToolButton(item.icon, stringResource(item.label), state.tool == item.tool) {
-                                viewModel.selectTool(item.tool)
-                            }
-                        }
-                        item {
-                            Box {
-                                ToolButton(Icons.Default.CheckBox, stringResource(R.string.tool_field), state.tool == Tool.FIELD) { fieldMenu = true }
+                    val openSettings = { barSettings = true }
+                    // One bar item: a tool stays selected, the other items open a menu or a picker.
+                    @Composable
+                    fun BarButton(item: BarItem, afterPick: () -> Unit = {}) {
+                        val selected = item.tool != null && state.tool == item.tool || item == BarItem.FIELD && state.tool == Tool.FIELD
+                        when (item) {
+                            BarItem.FIELD -> Box {
+                                ToolButton(item.icon, stringResource(item.label), selected, openSettings) { fieldMenu = true }
                                 FieldKindMenu(expanded = fieldMenu, onDismiss = { fieldMenu = false }) { kind ->
                                     fieldMenu = false
+                                    afterPick()
                                     viewModel.selectFieldKind(kind)
+                                    viewModel.used(BarItem.FIELD)
                                 }
                             }
-                        }
-                        item {
-                            ToolButton(Icons.Default.Image, stringResource(R.string.tool_image), false) {
+                            BarItem.IMAGE -> ToolButton(item.icon, stringResource(item.label), false, openSettings) {
+                                afterPick()
+                                viewModel.used(item)
                                 imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }
-                        }
-                        item {
-                            ToolButton(Icons.Default.Gesture, stringResource(R.string.tool_signature), false) { signatures = true }
-                        }
-                        item {
-                            Box {
-                                ToolButton(Icons.Default.Approval, stringResource(R.string.tool_stamp), false) { stampMenu = true }
+                            BarItem.SIGNATURE -> ToolButton(item.icon, stringResource(item.label), false, openSettings) {
+                                afterPick()
+                                viewModel.used(item)
+                                signatures = true
+                            }
+                            BarItem.STAMP -> Box {
+                                ToolButton(item.icon, stringResource(item.label), false, openSettings) { stampMenu = true; viewModel.used(item) }
                                 StampMenu(
                                     expanded = stampMenu,
                                     onDismiss = { stampMenu = false },
-                                    onStamp = { text, color -> stampMenu = false; viewModel.addStamp(text, color) },
-                                    onDate = { stampMenu = false; viewModel.addDate() },
-                                    onCustom = { stampMenu = false; stampDialog = true },
+                                    onStamp = { text, color -> stampMenu = false; afterPick(); viewModel.addStamp(text, color) },
+                                    onDate = { stampMenu = false; afterPick(); viewModel.addDate() },
+                                    onCustom = { stampMenu = false; afterPick(); stampDialog = true },
                                     saved = state.customStamps,
-                                    onSaved = { text -> stampMenu = false; viewModel.addStamp(text, Palette.RED) },
+                                    onSaved = { text -> stampMenu = false; afterPick(); viewModel.addStamp(text, Palette.RED) },
                                 )
+                            }
+                            else -> ToolButton(item.icon, stringResource(item.label), selected, openSettings) {
+                                afterPick()
+                                viewModel.selectTool(item.tool!!)
+                            }
+                        }
+                    }
+                    // Recent tools are taken when the editor opens, so the bar does not jump while you work.
+                    val recentAtOpen = remember(state.loading) { state.recent }
+                    val recent = if (state.showRecent) recentAtOpen else emptyList()
+                    LazyRow(contentPadding = PaddingValues(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (recent.isNotEmpty()) {
+                            items(recent, key = { "recent-" + it.name }) { item -> BarButton(item) }
+                            item(key = "recent-divider") {
+                                androidx.compose.material3.VerticalDivider(Modifier.height(40.dp).padding(horizontal = 4.dp))
+                            }
+                        }
+                        items(state.bar.visible, key = { it.name }) { item -> BarButton(item) }
+                        if (state.bar.more.isNotEmpty()) {
+                            item(key = "more") {
+                                ToolButton(Icons.Default.MoreHoriz, stringResource(R.string.bar_more), state.bar.more.any { it.tool == state.tool }) { moreTools = true }
+                            }
+                        }
+                        item(key = "settings") {
+                            ToolButton(Icons.Default.Tune, stringResource(R.string.bar_customize), false) { barSettings = true }
+                        }
+                    }
+                    if (moreTools) {
+                        androidx.compose.material3.ModalBottomSheet(onDismissRequest = { moreTools = false }) {
+                            Text(
+                                stringResource(R.string.bar_more),
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                            )
+                            androidx.compose.foundation.layout.FlowRow(
+                                Modifier.fillMaxWidth().padding(horizontal = 12.dp).padding(bottom = 24.dp).navigationBarsPadding(),
+                            ) {
+                                state.bar.more.forEach { item -> BarButton(item, afterPick = { moreTools = false }) }
                             }
                         }
                     }
@@ -307,55 +340,105 @@ fun EditorScreen(
                 state.loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                 state.failed -> MessageView(stringResource(R.string.error_open))
                 else -> {
-                    val pageSize = state.pageSizes[state.page]
-                    EditorCanvas(
-                        page = state.page,
-                        pageSize = pageSize,
-                        edits = state.pageEdits,
-                        selected = state.selected,
-                        tool = state.tool,
-                        group = state.grouped,
-                        previewColor = state.style.color(state.tool),
-                        previewWidth = state.style.width,
-                        textPaint = textPaint,
-                        pageText = pageText,
-                        pageBitmap = viewModel::pageBitmap,
-                        generation = state.generation,
-                        vertices = if (state.tool == Tool.MEASURE_AREA) state.vertices else emptyList(),
-                        gestures = object : EditorGestures {
-                            override fun onStroke(points: List<Pt>) = viewModel.addStroke(state.page, points)
-                            override fun onShape(kind: ShapeKind, start: Pt, end: Pt) = viewModel.addShape(state.page, kind, start, end)
-                            override fun onMarkup(kind: MarkupKind, from: Pt, to: Pt) = viewModel.addMarkup(state.page, kind, from, to)
-                            override fun onReplace(from: Pt, to: Pt) = viewModel.pickTextToReplace(state.page, from, to)
-                            override fun onTap(at: Pt) {
-                                when (state.tool) {
-                                    Tool.MEASURE_AREA -> viewModel.addVertex(at)
-                                    Tool.IMAGE_EDIT -> viewModel.detachImageAt(state.page, at)
-                                    Tool.NOTE -> prompt = TextPrompt.NewNote(state.page, at)
-                                    else -> prompt = TextPrompt.NewText(state.page, at)
+                    // Gesture callbacks for one page; every page of the strip has its own.
+                    fun gesturesFor(page: Int) = object : EditorGestures {
+                        override fun onStroke(points: List<Pt>) = viewModel.addStroke(page, points)
+                        override fun onShape(kind: ShapeKind, start: Pt, end: Pt) = viewModel.addShape(page, kind, start, end)
+                        override fun onMarkup(kind: MarkupKind, from: Pt, to: Pt) = viewModel.addMarkup(page, kind, from, to)
+                        override fun onReplace(from: Pt, to: Pt) = viewModel.pickTextToReplace(page, from, to)
+                        override fun onTap(at: Pt) {
+                            when (state.tool) {
+                                Tool.MEASURE_AREA -> {
+                                    // Corners of one area stay on one page.
+                                    if (state.vertices.isNotEmpty() && page != state.page) return
+                                    viewModel.showPage(page)
+                                    viewModel.addVertex(at)
                                 }
+                                Tool.IMAGE_EDIT -> viewModel.detachImageAt(page, at)
+                                Tool.NOTE -> prompt = TextPrompt.NewNote(page, at)
+                                else -> prompt = TextPrompt.NewText(page, at)
                             }
-                            override fun onSmartStroke(points: List<Pt>) = viewModel.addSmartStroke(state.page, points)
-                            override fun onErase(path: List<Pt>) = viewModel.erase(state.page, path)
-                            override fun onArea(start: Pt, end: Pt) = viewModel.addArea(state.page, start, end)
-                            override fun onMeasureLine(start: Pt, end: Pt) = viewModel.addMeasureLine(state.page, start, end)
-                            override fun onSelect(id: Long?) = viewModel.select(id)
-                            override fun onPreview(edit: Edit) = viewModel.preview(edit)
-                            override fun onCommitPreview() = viewModel.commitPreview()
-                            override fun onLasso(path: List<Pt>) = viewModel.lasso(state.page, path)
-                            override fun onGroupMove(dx: Float, dy: Float) = viewModel.previewGroupMove(dx, dy)
-                        },
-                    )
+                        }
+                        override fun onSmartStroke(points: List<Pt>) = viewModel.addSmartStroke(page, points)
+                        override fun onErase(path: List<Pt>) = viewModel.erase(page, path)
+                        override fun onArea(start: Pt, end: Pt) = viewModel.addArea(page, start, end)
+                        override fun onMeasureLine(start: Pt, end: Pt) = viewModel.addMeasureLine(page, start, end)
+                        override fun onSelect(id: Long?) = viewModel.select(id)
+                        override fun onPreview(edit: Edit) = viewModel.preview(edit)
+                        override fun onCommitPreview() = viewModel.commitPreview()
+                        override fun onLasso(path: List<Pt>) = viewModel.lasso(page, path)
+                        override fun onGroupMove(dx: Float, dy: Float) = viewModel.previewGroupMove(dx, dy)
+                    }
+                    if (state.strip) {
+                        val markup = state.tool == Tool.HIGHLIGHT || state.tool == Tool.UNDERLINE || state.tool == Tool.STRIKEOUT || state.tool == Tool.REPLACE
+                        val texts = remember { androidx.compose.runtime.mutableStateMapOf<Int, PageText>() }
+                        EditorStrip(
+                            listState = stripState,
+                            pageSizes = state.pageSizes,
+                            content = { i ->
+                                if (markup && i !in texts) scope.launch { viewModel.pageText(i)?.let { texts[i] = it } }
+                                PageContent(
+                                    page = i,
+                                    pageSize = state.pageSizes[i],
+                                    edits = state.edits.filter { it.page == i },
+                                    selected = state.selected?.takeIf { it.page == i },
+                                    group = state.grouped.filter { it.page == i },
+                                    vertices = if (state.tool == Tool.MEASURE_AREA && i == state.page) state.vertices else emptyList(),
+                                    pageText = if (markup) texts[i] else null,
+                                    gestures = gesturesFor(i),
+                                )
+                            },
+                            tool = state.tool,
+                            previewColor = state.style.color(state.tool),
+                            previewWidth = state.style.width,
+                            textPaint = textPaint,
+                            pageBitmap = viewModel::pageBitmap,
+                            onVisiblePage = viewModel::showPage,
+                            generation = state.generation,
+                            allEdits = state.edits,
+                        )
+                        LaunchedEffect(state.generation) { texts.clear() }
+                    } else {
+                        EditorCanvas(
+                            page = state.page,
+                            pageSize = state.pageSizes[state.page],
+                            edits = state.pageEdits,
+                            selected = state.selected,
+                            tool = state.tool,
+                            group = state.grouped,
+                            previewColor = state.style.color(state.tool),
+                            previewWidth = state.style.width,
+                            textPaint = textPaint,
+                            pageText = pageText,
+                            pageBitmap = viewModel::pageBitmap,
+                            generation = state.generation,
+                            vertices = if (state.tool == Tool.MEASURE_AREA) state.vertices else emptyList(),
+                            gestures = gesturesFor(state.page),
+                        )
+                    }
                     PageNavigator(
                         page = state.page,
                         count = state.pageSizes.size,
-                        onPage = viewModel::goToPage,
+                        onPage = { p ->
+                            if (state.strip) scope.launch { stripState.animateScrollToItem(p.coerceIn(0, state.pageSizes.size - 1)) }
+                            else viewModel.goToPage(p)
+                        },
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp),
                     )
                 }
             }
             if (state.busy) BusyOverlay(stringResource(R.string.working))
         }
+    }
+
+    if (barSettings) {
+        BarSettingsSheet(
+            layout = state.bar,
+            showRecent = state.showRecent,
+            onChange = viewModel::setBar,
+            onShowRecent = { viewModel.setShowRecent(it) },
+            onDismiss = { barSettings = false },
+        )
     }
 
     prompt?.let { p ->
@@ -449,12 +532,13 @@ private fun textOf(edit: Edit) = when (edit) {
 }
 
 @Composable
-private fun ToolButton(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun ToolButton(icon: ImageVector, label: String, selected: Boolean, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
     Column(
         Modifier
             .width(68.dp)
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .background(
                 if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                 RoundedCornerShape(12.dp),
@@ -471,7 +555,7 @@ private fun ToolButton(icon: ImageVector, label: String, selected: Boolean, onCl
 private fun StyleBar(state: EditorUiState, viewModel: EditorViewModel) {
     val selected = state.selected
     val tool = state.tool
-    val plainTools = setOf(Tool.SELECT, Tool.ERASER, Tool.REDACT, Tool.LINK, Tool.FIELD, Tool.IMAGE_EDIT, Tool.MEASURE_DISTANCE, Tool.MEASURE_AREA)
+    val plainTools = setOf(Tool.SELECT, Tool.HAND, Tool.ERASER, Tool.REDACT, Tool.LINK, Tool.FIELD, Tool.IMAGE_EDIT, Tool.MEASURE_DISTANCE, Tool.MEASURE_AREA)
     if (selected is ImageEdit || selected is app.pdfdoc.domain.edit.LinkEdit || selected is app.pdfdoc.domain.edit.RedactEdit ||
         selected is app.pdfdoc.domain.edit.FieldEdit || (selected == null && tool in plainTools)
     ) return

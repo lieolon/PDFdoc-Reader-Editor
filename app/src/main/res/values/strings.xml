@@ -678,4 +678,18 @@
     <string name="import_sheet">Sheet %1$d</string>
     <string name="import_slide">Slide %1$d</string>
     <string name="secret_all_hidden">All your files are in the secret folder. Tap \"Secret\" to see them.</string>
+    <string name="tool_hand">Hand</string>
+    <string name="hint_hand">Drag to scroll and move around the page. Two fingers scroll and zoom with any tool.</string>
+    <string name="editor_pages_strip">Pages one under another</string>
+    <string name="editor_pages_single">One page at a time</string>
+    <string name="bar_settings">Customize the tool bar</string>
+    <string name="bar_settings_hint">Move tools with the arrows. Switched-off tools are kept under \"More\". Long-press any tool to open this.</string>
+    <string name="bar_reset">Reset</string>
+    <string name="bar_recent">Recent tools first</string>
+    <string name="bar_recent_hint">The last 4 tools you used at the start of the bar</string>
+    <string name="bar_in_more">Under \"More\"</string>
+    <string name="bar_move_up">Move up</string>
+    <string name="bar_move_down">Move down</string>
+    <string name="bar_more">More</string>
+    <string name="bar_customize">Customize</string>
 </resources>
