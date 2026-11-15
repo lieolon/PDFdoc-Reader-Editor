@@ -1,0 +1,5 @@
+• Editor: pages one under another, like the viewer
+• Two fingers scroll and zoom with any tool
+• New Hand tool to scroll with one finger
+• Customizable tool bar: order, "More" for extra tools, recent tools first
+• One page at a time is still in the menu
