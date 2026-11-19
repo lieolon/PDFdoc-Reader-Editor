@@ -21,6 +21,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.receiveAsFlow
 import app.pdfdoc.data.files.DocumentEvents
@@ -126,6 +127,12 @@ class ViewerViewModel @Inject constructor(
     val search: StateFlow<SearchState> = _search.asStateFlow()
 
     val keepScreenOn: StateFlow<Boolean> = settings.keepScreenOn.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    val menuLayout: StateFlow<MenuLayout> = settings.viewerMenu.map(MenuLayout::decode).stateIn(viewModelScope, SharingStarted.Eagerly, MenuLayout())
+
+    fun setMenuLayout(layout: MenuLayout) {
+        viewModelScope.launch { settings.setViewerMenu(layout.encode()) }
+    }
 
     fun setKeepScreenOn(on: Boolean) {
         viewModelScope.launch { settings.setKeepScreenOn(on) }

@@ -1,0 +1,2 @@
+• The viewer "⋮" menu is customizable: rarely used items moved to "More", order and contents can be changed
+• "Customize menu" is at the bottom of "More"

@@ -698,4 +698,10 @@
     <string name="tips_thanks">Thank you for your support! ♥</string>
     <string name="tips_pending">The payment is pending. Thank you!</string>
     <string name="tips_failed">The payment didn\'t go through. Please try again later.</string>
+    <string name="menu_settings">Customize menu</string>
+    <string name="menu_settings_hint">Move items with the arrows. Items under \"More\" open from the bottom of the menu.</string>
+    <string name="menu_group_main">In the menu</string>
+    <string name="menu_group_more">Under \"More\"</string>
+    <string name="menu_to_more">To More</string>
+    <string name="menu_to_main">To menu</string>
 </resources>

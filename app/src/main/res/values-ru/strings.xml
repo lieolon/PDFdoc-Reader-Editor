@@ -698,4 +698,10 @@
     <string name="tips_thanks">Спасибо за поддержку! ♥</string>
     <string name="tips_pending">Платёж ожидает подтверждения. Спасибо!</string>
     <string name="tips_failed">Не удалось оплатить. Попробуйте позже.</string>
+    <string name="menu_settings">Настроить меню</string>
+    <string name="menu_settings_hint">Переставляйте пункты стрелками. Пункты из «Ещё» открываются внизу меню.</string>
+    <string name="menu_group_main">В меню</string>
+    <string name="menu_group_more">В «Ещё»</string>
+    <string name="menu_to_more">В «Ещё»</string>
+    <string name="menu_to_main">В меню</string>
 </resources>

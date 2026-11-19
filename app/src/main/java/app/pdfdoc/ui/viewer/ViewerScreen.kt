@@ -89,6 +89,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.GridView
@@ -209,6 +213,10 @@ fun ViewerScreen(
     var nightMode by rememberSaveable { mutableStateOf(false) }
     var goToDialog by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
+    /** The "⋮" menu shows its "More" page instead of the main items. */
+    var menuMore by remember { mutableStateOf(false) }
+    var menuSettings by remember { mutableStateOf(false) }
+    val menuLayout by viewModel.menuLayout.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
@@ -260,96 +268,83 @@ fun ViewerScreen(
                                 Icon(Icons.Default.GridView, stringResource(R.string.viewer_pages))
                             }
                             Box {
-                                IconButton(onClick = { menu = true }) {
+                                IconButton(onClick = { menuMore = false; menu = true }) {
                                     Icon(Icons.Default.MoreVert, stringResource(R.string.more))
                                 }
-                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                    val share = stringResource(R.string.viewer_share)
-                                    val openWith = stringResource(R.string.viewer_open_with)
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.viewer_night_mode)) },
-                                        leadingIcon = {
-                                            Icon(if (nightMode) Icons.Default.LightMode else Icons.Default.DarkMode, null)
-                                        },
-                                        onClick = { menu = false; nightMode = !nightMode },
-                                    )
-                                    if ((state as? ViewerUiState.Ready)?.hasForm == true) {
+                                val share = stringResource(R.string.viewer_share)
+                                val openWith = stringResource(R.string.viewer_open_with)
+                                fun run(item: MenuItem) {
+                                    menu = false
+                                    when (item) {
+                                        MenuItem.NIGHT -> nightMode = !nightMode
+                                        MenuItem.MODE -> modeDialog = true
+                                        MenuItem.NAVIGATION -> navigation = true
+                                        MenuItem.READER -> onReader(viewModel.uri.toString(), currentPage(listState, mode))
+                                        MenuItem.ASK -> onAsk(viewModel.uri.toString())
+                                        MenuItem.PRESENT -> onPresent(viewModel.uri.toString(), currentPage(listState, mode))
+                                        MenuItem.AUTO_SCROLL -> { autoScroll = 40f; chromeVisible = true }
+                                        MenuItem.KEEP_ON -> viewModel.setKeepScreenOn(!keepOn)
+                                        MenuItem.SIDE_BY_SIDE -> openSideBySide(context, viewModel.uri)
+                                        MenuItem.READ_ALOUD -> viewModel.startReading(currentPage(listState, mode))
+                                        MenuItem.TOOLS -> onTools(viewModel.uri.toString())
+                                        MenuItem.OCR -> confirmOcr = true
+                                        MenuItem.SHARE -> sharePdf(context, viewModel.uri, share)
+                                        MenuItem.OPEN_WITH -> openPdfWith(context, viewModel.uri, openWith)
+                                        MenuItem.PRINT -> printPdf(context, viewModel.uri, title)
+                                    }
+                                }
+                                @Composable
+                                fun Entry(item: MenuItem) = DropdownMenuItem(
+                                    text = { Text(stringResource(item.label)) },
+                                    leadingIcon = {
+                                        when (item) {
+                                            MenuItem.NIGHT -> Icon(if (nightMode) Icons.Default.LightMode else Icons.Default.DarkMode, null)
+                                            MenuItem.KEEP_ON -> androidx.compose.material3.Checkbox(checked = keepOn, onCheckedChange = null)
+                                            else -> Icon(item.icon, null)
+                                        }
+                                    },
+                                    onClick = { run(item) },
+                                )
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false; menuMore = false }) {
+                                    if (!menuMore) {
+                                        if ((state as? ViewerUiState.Ready)?.hasForm == true) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.viewer_fill_form)) },
+                                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Assignment, null) },
+                                                onClick = { menu = false; onFillForm(viewModel.uri.toString()) },
+                                            )
+                                        }
+                                        menuLayout.main.forEach { Entry(it) }
+                                        HorizontalDivider()
+                                        if (menuLayout.extra.isNotEmpty()) {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.bar_more)) },
+                                                leadingIcon = { Icon(Icons.Default.MoreHoriz, null) },
+                                                trailingIcon = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null) },
+                                                onClick = { menuMore = true },
+                                            )
+                                        } else {
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(R.string.menu_settings)) },
+                                                leadingIcon = { Icon(Icons.Default.Tune, null) },
+                                                onClick = { menu = false; menuSettings = true },
+                                            )
+                                        }
+                                    } else {
                                         DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.viewer_fill_form)) },
-                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.Assignment, null) },
-                                            onClick = { menu = false; onFillForm(viewModel.uri.toString()) },
+                                            text = { Text(stringResource(R.string.bar_more), style = MaterialTheme.typography.titleSmall) },
+                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) },
+                                            onClick = { menuMore = false },
+                                        )
+                                        HorizontalDivider()
+                                        menuLayout.extra.forEach { Entry(it) }
+                                        HorizontalDivider()
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.menu_settings)) },
+                                            leadingIcon = { Icon(Icons.Default.Tune, null) },
+                                            onClick = { menu = false; menuMore = false; menuSettings = true },
                                         )
                                     }
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.viewer_mode)) },
-                                        leadingIcon = { Icon(Icons.Default.ViewAgenda, null) },
-                                        onClick = { menu = false; modeDialog = true },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.viewer_navigation)) },
-                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.List, null) },
-                                        onClick = { menu = false; navigation = true },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.reader_mode)) },
-                                        leadingIcon = { Icon(Icons.Default.ChromeReaderMode, null) },
-                                        onClick = { menu = false; onReader(viewModel.uri.toString(), currentPage(listState, mode)) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.ask_title)) },
-                                        leadingIcon = { Icon(Icons.Default.QuestionAnswer, null) },
-                                        onClick = { menu = false; onAsk(viewModel.uri.toString()) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.present_mode)) },
-                                        leadingIcon = { Icon(Icons.Default.Slideshow, null) },
-                                        onClick = { menu = false; onPresent(viewModel.uri.toString(), currentPage(listState, mode)) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.auto_scroll)) },
-                                        leadingIcon = { Icon(Icons.Default.SwipeDown, null) },
-                                        onClick = { menu = false; autoScroll = 40f; chromeVisible = true },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.keep_screen_on)) },
-                                        leadingIcon = { androidx.compose.material3.Checkbox(checked = keepOn, onCheckedChange = null) },
-                                        onClick = { menu = false; viewModel.setKeepScreenOn(!keepOn) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.open_side_by_side)) },
-                                        leadingIcon = { Icon(Icons.Default.VerticalSplit, null) },
-                                        onClick = { menu = false; openSideBySide(context, viewModel.uri) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.read_aloud)) },
-                                        leadingIcon = { Icon(Icons.Default.RecordVoiceOver, null) },
-                                        onClick = { menu = false; viewModel.startReading(currentPage(listState, mode)) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.viewer_tools)) },
-                                        leadingIcon = { Icon(Icons.Default.Build, null) },
-                                        onClick = { menu = false; onTools(viewModel.uri.toString()) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.viewer_ocr)) },
-                                        leadingIcon = { Icon(Icons.Default.DocumentScanner, null) },
-                                        onClick = { menu = false; confirmOcr = true },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(share) },
-                                        leadingIcon = { Icon(Icons.Default.Share, null) },
-                                        onClick = { menu = false; sharePdf(context, viewModel.uri, share) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(openWith) },
-                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
-                                        onClick = { menu = false; openPdfWith(context, viewModel.uri, openWith) },
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.viewer_print)) },
-                                        leadingIcon = { Icon(Icons.Default.Print, null) },
-                                        onClick = { menu = false; printPdf(context, viewModel.uri, title) },
-                                    )
                                 }
                             }
                         },
@@ -563,6 +558,9 @@ fun ViewerScreen(
             },
             confirmButton = { TextButton(onClick = { modeDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+    if (menuSettings) {
+        MenuSettingsSheet(layout = menuLayout, onChange = viewModel::setMenuLayout, onDismiss = { menuSettings = false })
     }
     if (navigation) {
         val ready = state as? ViewerUiState.Ready

@@ -37,6 +37,7 @@ class SettingsRepository @Inject constructor(
     private val readerThemeKey = stringPreferencesKey("reader_theme")
     private val readerSerifKey = androidx.datastore.preferences.core.booleanPreferencesKey("reader_serif")
     private val measureKey = stringPreferencesKey("measure_scale")
+    private val viewerMenuKey = stringPreferencesKey("viewer_menu")
     private val editorStripKey = androidx.datastore.preferences.core.booleanPreferencesKey("editor_strip")
     private val editorBarKey = stringPreferencesKey("editor_bar")
     private val editorRecentKey = stringPreferencesKey("editor_recent")
@@ -97,6 +98,10 @@ class SettingsRepository @Inject constructor(
         it[readerThemeKey] = theme
         it[readerSerifKey] = serif
     }
+
+    /** Viewer "⋮" menu as "ITEM,-MORE_ITEM,…" (see MenuLayout); empty: default. */
+    val viewerMenu: Flow<String> = context.dataStore.data.map { it[viewerMenuKey].orEmpty() }
+    suspend fun setViewerMenu(raw: String) = context.dataStore.edit { if (raw.isEmpty()) it.remove(viewerMenuKey) else it[viewerMenuKey] = raw }
 
     /** Editor pages one under another (true) or one at a time. */
     val editorStrip: Flow<Boolean> = context.dataStore.data.map { it[editorStripKey] ?: true }
