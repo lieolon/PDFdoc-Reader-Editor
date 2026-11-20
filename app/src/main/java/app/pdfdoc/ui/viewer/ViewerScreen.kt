@@ -157,6 +157,7 @@ import app.pdfdoc.ui.common.MessageView
 import app.pdfdoc.ui.common.findActivity
 import app.pdfdoc.ui.common.openPdfWith
 import app.pdfdoc.ui.common.printPdf
+import app.pdfdoc.ui.common.shareFile
 import app.pdfdoc.ui.common.sharePdf
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
@@ -216,6 +217,8 @@ fun ViewerScreen(
     /** The "⋮" menu shows its "More" page instead of the main items. */
     var menuMore by remember { mutableStateOf(false) }
     var menuSettings by remember { mutableStateOf(false) }
+    /** "Share" on a converted document asks whether to send the original file or the PDF. */
+    var shareChoice by remember { mutableStateOf(false) }
     val menuLayout by viewModel.menuLayout.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -288,7 +291,7 @@ fun ViewerScreen(
                                         MenuItem.READ_ALOUD -> viewModel.startReading(currentPage(listState, mode))
                                         MenuItem.TOOLS -> onTools(viewModel.uri.toString())
                                         MenuItem.OCR -> confirmOcr = true
-                                        MenuItem.SHARE -> sharePdf(context, viewModel.uri, share)
+                                        MenuItem.SHARE -> if (viewModel.original != null) shareChoice = true else sharePdf(context, viewModel.uri, share)
                                         MenuItem.OPEN_WITH -> openPdfWith(context, viewModel.uri, openWith)
                                         MenuItem.PRINT -> printPdf(context, viewModel.uri, title)
                                     }
@@ -557,6 +560,34 @@ fun ViewerScreen(
                 }
             },
             confirmButton = { TextButton(onClick = { modeDialog = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    if (shareChoice) {
+        val original = viewModel.original
+        val shareTitle = stringResource(R.string.viewer_share)
+        val originalName = original?.first?.lastPathSegment.orEmpty()
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { shareChoice = false },
+            title = { Text(stringResource(R.string.share_what)) },
+            text = {
+                Column {
+                    androidx.compose.material3.ListItem(
+                        headlineContent = { Text(stringResource(R.string.share_original)) },
+                        supportingContent = { Text(stringResource(R.string.share_original_hint, originalName)) },
+                        modifier = Modifier.clickable {
+                            shareChoice = false
+                            original?.let { (uri, mime) -> shareFile(context, uri, mime, shareTitle) }
+                        },
+                    )
+                    androidx.compose.material3.ListItem(
+                        headlineContent = { Text(stringResource(R.string.share_pdf)) },
+                        supportingContent = { Text(stringResource(R.string.share_pdf_hint)) },
+                        modifier = Modifier.clickable { shareChoice = false; sharePdf(context, viewModel.uri, shareTitle) },
+                    )
+                }
+            },
+            confirmButton = {},
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { shareChoice = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (menuSettings) {

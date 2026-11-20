@@ -704,4 +704,9 @@
     <string name="menu_group_more">В «Ещё»</string>
     <string name="menu_to_more">В «Ещё»</string>
     <string name="menu_to_main">В меню</string>
+    <string name="share_what">Что отправить?</string>
+    <string name="share_original">Исходный файл</string>
+    <string name="share_original_hint">%1$s — точно в том виде, в каком был открыт, со всем оформлением</string>
+    <string name="share_pdf">PDF</string>
+    <string name="share_pdf_hint">PDF, сделанный из него, с вашими правками</string>
 </resources>

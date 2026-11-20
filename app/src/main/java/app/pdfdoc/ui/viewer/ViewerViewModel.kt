@@ -110,6 +110,7 @@ class ViewerViewModel @Inject constructor(
     private val forms: PdfForms,
     private val bookmarkDao: BookmarkDao,
     private val settings: app.pdfdoc.data.settings.SettingsRepository,
+    private val importer: app.pdfdoc.data.convert.DocumentImporter,
     @ApplicationContext private val context: Context,
     private val events: DocumentEvents,
     private val comments: app.pdfdoc.data.pdf.PdfComments,
@@ -129,6 +130,9 @@ class ViewerViewModel @Inject constructor(
     val keepScreenOn: StateFlow<Boolean> = settings.keepScreenOn.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     val menuLayout: StateFlow<MenuLayout> = settings.viewerMenu.map(MenuLayout::decode).stateIn(viewModelScope, SharingStarted.Eagerly, MenuLayout())
+
+    /** For a PDF converted from Word, text or another format: the original file and its MIME type. */
+    val original: Pair<Uri, String>? by lazy { runCatching { importer.originalOf(uri) }.getOrNull() }
 
     fun setMenuLayout(layout: MenuLayout) {
         viewModelScope.launch { settings.setViewerMenu(layout.encode()) }

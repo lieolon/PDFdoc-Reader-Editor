@@ -47,6 +47,14 @@ class DocumentImporter @Inject constructor(
         val base = info.name.substringBeforeLast('.').ifBlank { "document" }.replace(Regex("[\\\\/:*?\"<>|]"), "_")
         val folder = File(dir, key(uri, info.sizeBytes))
         val target = File(folder, "$base.pdf")
+        // A copy of the source, so "Share" can send the original file and not only the PDF made from it.
+        val original = File(File(folder, SOURCE_DIR), info.name.ifBlank { "$base.${format.name.lowercase()}" })
+        if (!original.exists()) {
+            runCatching {
+                original.parentFile?.mkdirs()
+                context.contentResolver.openInputStream(uri)?.use { input -> original.outputStream().use { input.copyTo(it) } }
+            }.onFailure { original.delete() }
+        }
         if (!target.exists()) {
             folder.mkdirs()
             val temp = File(folder, ".$base.part")
@@ -110,12 +118,28 @@ class DocumentImporter @Inject constructor(
                 if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else 0L
             }
         }.getOrNull() ?: 0L
-        val digest = MessageDigest.getInstance("SHA-256").digest("$uri|$size|$modified".toByteArray())
+        val digest = MessageDigest.getInstance("SHA-256").digest("$uri|$size|$modified|$CONVERTER_VERSION".toByteArray())
         return digest.take(8).joinToString("") { "%02x".format(it) }
+    }
+
+    /**
+     * The original file a converted PDF was made from, with its MIME type, or null when [pdf] was not converted
+     * by this class (or the copy could not be made).
+     */
+    fun originalOf(pdf: Uri): Pair<Uri, String>? {
+        if (pdf.authority != authority(context)) return null
+        val segments = pdf.pathSegments
+        if (segments.size < 3 || segments[0] != DIR) return null
+        val source = File(File(dir, segments[1]), SOURCE_DIR).listFiles()?.firstOrNull { it.isFile && it.length() > 0 } ?: return null
+        val mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(source.extension.lowercase()) ?: "application/octet-stream"
+        return FileProvider.getUriForFile(context, authority(context), source) to mime
     }
 
     companion object {
         const val DIR = "converted"
+        private const val SOURCE_DIR = "source"
+        /** Raised when conversion improves, so files open again with the new layout. */
+        private const val CONVERTER_VERSION = 2
         private const val SHORT_SIDE = 595f
         private const val JPEG_QUALITY = 0.9f
         private const val IMAGE_MAX_SIDE = 3000

@@ -339,32 +339,104 @@ object OfficeText {
         return out
     }
 
+    /**
+     * Word body: paragraphs with heading level, list bullet, bold and alignment, and tables with their column
+     * widths, so the PDF keeps the document's layout. Nested tables are flattened into their cell.
+     */
     fun docxXml(xml: String): List<TextBlock> {
-        val b = BlockBuilder(collapse = false)
+        val out = mutableListOf<TextBlock>()
+        val para = StringBuilder()
+        var heading = 0
+        var bullet = false
+        var align = TextAlign.LEFT
+        var chars = 0
+        var boldChars = 0
+        var runBold = false
         var inText = false
+        var inPPr = false
+        var inRPr = false
         var deleted = 0
+        // Tables: depth > 1 is a table inside a cell, kept as text of that cell.
+        var depth = 0
+        val widths = mutableListOf<Float>()
+        val rows = mutableListOf<List<TableCell>>()
+        var row = mutableListOf<TableCell>()
+        val cell = StringBuilder()
+        var cellChars = 0
+        var cellBold = 0
+        var span = 1
+
+        fun endParagraph() {
+            val text = para.toString().lines().joinToString("\n") { it.trimEnd() }.trim('\n')
+            val bold = chars > 0 && boldChars * 10 >= chars * 9
+            if (depth > 0) {
+                if (cell.isNotEmpty() && text.isNotEmpty()) cell.append('\n')
+                cell.append(text)
+                cellChars += chars
+                cellBold += boldChars
+            } else if (text.isNotBlank()) {
+                out += TextBlock(text, heading = heading, bullet = bullet, bold = bold, align = align)
+            }
+            para.clear()
+            heading = 0; bullet = false; align = TextAlign.LEFT; chars = 0; boldChars = 0
+        }
+
         for (t in Markup.tokens(xml)) when (t) {
-            is Markup.Text -> if (inText && deleted == 0) b.append(t.text)
+            is Markup.Text -> if (inText && deleted == 0) {
+                para.append(t.text)
+                chars += t.text.length
+                if (runBold) boldChars += t.text.length
+            }
             is Markup.Tag -> when (t.name) {
-                "w:p" -> if (t.closing || t.selfClosing) b.flush()
-                "w:t" -> inText = !t.closing && !t.selfClosing
-                "w:del" -> if (!t.selfClosing) deleted = (deleted + if (t.closing) -1 else 1).coerceAtLeast(0)
-                "w:tab" -> if (!t.closing) b.append("\t")
-                "w:br", "w:cr" -> if (!t.closing) b.lineBreak()
-                "w:tc" -> if (t.closing) b.append("   ")
-                "w:pstyle" -> {
-                    val style = t.attrs["w:val"].orEmpty().lowercase()
-                    b.heading = when {
-                        style == "title" -> 1
-                        style.startsWith("heading") -> style.removePrefix("heading").trim().toIntOrNull()?.coerceIn(1, 3) ?: 0
-                        else -> b.heading
+                "w:tbl" -> if (!t.selfClosing) {
+                    if (!t.closing) {
+                        depth++
+                        if (depth == 1) { widths.clear(); rows.clear() }
+                    } else {
+                        if (depth == 1 && rows.isNotEmpty()) out += TextBlock("", table = Table(widths.toList(), rows.toList()))
+                        depth = (depth - 1).coerceAtLeast(0)
                     }
                 }
-                "w:numpr" -> if (!t.closing) b.bullet = true
+                "w:gridcol" -> if (depth == 1 && !t.closing) widths += t.attrs["w:w"]?.toFloatOrNull() ?: 0f
+                "w:tr" -> if (depth == 1 && !t.selfClosing) {
+                    if (!t.closing) row = mutableListOf() else if (row.isNotEmpty()) rows += row.toList()
+                }
+                "w:tc" -> if (depth == 1 && !t.selfClosing) {
+                    if (!t.closing) {
+                        cell.clear(); cellChars = 0; cellBold = 0; span = 1
+                    } else {
+                        row += TableCell(cell.toString(), bold = cellChars > 0 && cellBold * 10 >= cellChars * 9, span = span)
+                    }
+                }
+                "w:gridspan" -> if (depth == 1 && !t.closing) span = t.attrs["w:val"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+                "w:p" -> if (t.closing || t.selfClosing) endParagraph()
+                "w:ppr" -> if (!t.selfClosing) inPPr = !t.closing
+                "w:rpr" -> if (!t.selfClosing) inRPr = !t.closing
+                "w:r" -> if (!t.closing) runBold = false
+                "w:b" -> if (inRPr && !inPPr && !t.closing) runBold = t.attrs["w:val"].let { it == null || it == "1" || it == "true" || it == "on" }
+                "w:jc" -> if (inPPr && !t.closing) align = when (t.attrs["w:val"]) {
+                    "center" -> TextAlign.CENTER
+                    "right", "end" -> TextAlign.RIGHT
+                    "both", "distribute" -> TextAlign.JUSTIFY
+                    else -> TextAlign.LEFT
+                }
+                "w:t" -> inText = !t.closing && !t.selfClosing
+                "w:del" -> if (!t.selfClosing) deleted = (deleted + if (t.closing) -1 else 1).coerceAtLeast(0)
+                "w:tab" -> if (!t.closing && !inPPr) para.append('\t')
+                "w:br", "w:cr" -> if (!t.closing) para.append('\n')
+                "w:pstyle" -> {
+                    val style = t.attrs["w:val"].orEmpty().lowercase()
+                    heading = when {
+                        style == "title" -> 1
+                        style.startsWith("heading") -> style.removePrefix("heading").trim().toIntOrNull()?.coerceIn(1, 3) ?: 0
+                        else -> heading
+                    }
+                }
+                "w:numpr" -> if (!t.closing) bullet = true
             }
         }
-        b.flush()
-        return b.blocks
+        endParagraph()
+        return out.map { it.copy(text = it.text.replace('\u00A0', ' ')) }
     }
 
     fun odtXml(xml: String): List<TextBlock> {

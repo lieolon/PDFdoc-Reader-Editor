@@ -1,0 +1,2 @@
+• Word files open with their tables, bold text and alignment
+• "Share" for Word and other formats: send the original file with its formatting, or the PDF

@@ -704,4 +704,9 @@
     <string name="menu_group_more">Under \"More\"</string>
     <string name="menu_to_more">To More</string>
     <string name="menu_to_main">To menu</string>
+    <string name="share_what">What to send?</string>
+    <string name="share_original">Original file</string>
+    <string name="share_original_hint">%1$s, exactly as it was opened, with its formatting</string>
+    <string name="share_pdf">PDF</string>
+    <string name="share_pdf_hint">The PDF made from it, with your edits</string>
 </resources>

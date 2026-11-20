@@ -29,6 +29,15 @@ fun sharePdf(context: Context, uri: Uri, title: String) {
     context.startActivity(Intent.createChooser(send, title))
 }
 
+/** Sends any file (for example the original Word file of a converted document). */
+fun shareFile(context: Context, uri: Uri, mime: String, title: String) {
+    val send = Intent(Intent.ACTION_SEND)
+        .setType(mime)
+        .putExtra(Intent.EXTRA_STREAM, uri)
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    context.startActivity(Intent.createChooser(send, title))
+}
+
 fun openPdfWith(context: Context, uri: Uri, title: String) {
     val view = Intent(Intent.ACTION_VIEW)
         .setDataAndType(uri, "application/pdf")

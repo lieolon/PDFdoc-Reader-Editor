@@ -17,8 +17,8 @@ android {
         applicationId = "app.pdfdoc"
         minSdk = 26
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.3.2"
+        versionCode = 14
+        versionName = "1.3.3"
     }
 
     // Upload key for Google Play lives outside git (signing/keystore.properties).
