@@ -10,3 +10,7 @@ captures/
 *.jks
 dist/
 signing/
+
+# Internal notes, kept only locally
+docs/release.md
+docs/competitive-analysis.md
